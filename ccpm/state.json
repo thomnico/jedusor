@@ -1,0 +1,34 @@
+{
+  "project": {
+    "status": "in_progress",
+    "currentEpic": null,
+    "activeIssues": [
+      5,
+      6,
+      7,
+      8
+    ],
+    "activeWorktrees": []
+  },
+  "prs": {
+    "active": [],
+    "draft": [],
+    "completed": []
+  },
+  "agents": {
+    "running": [],
+    "completed": []
+  },
+  "github": {
+    "lastSync": null,
+    "syncEnabled": true
+  },
+  "stats": {
+    "totalEpics": 4,
+    "completedEpics": 0,
+    "totalIssues": 8,
+    "completedIssues": 0
+  },
+  "initializedAt": "2026-01-02T16:15:27Z",
+  "lastActivity": "2026-01-02T17:18:56Z"
+}
