@@ -6,94 +6,176 @@
 **Version**: 1.0
 **Date**: 2026-01-02
 
-Jedusor recreates the magical Tom Riddle diary experience from Harry Potter on the reMarkable tablet. Users write questions with the stylus, and an AI entity responds as if the journal itself is alive, with text appearing magically on the e-ink display.
+Jedusor is a stylus-first AI interaction layer for reMarkable tablets. Write questions, annotations, or commands by hand—the AI responds directly on the e-ink display. Works as a blank journal (magical diary mode) or overlaid on PDFs/documents for interactive reading and research.
 
 ## Problem Statement
 
-E-ink tablets excel at distraction-free writing but lack interactive, magical experiences. Existing AI chat interfaces are screen-based and lack the tactile intimacy of writing by hand. There is no native way to have a conversational AI experience that feels like writing in a sentient journal.
+Reading and annotating PDFs on e-ink tablets is passive. Users highlight, scribble notes, but can't ask questions about content or get explanations without switching devices. Existing AI chat interfaces require typing and break the pen-and-paper flow. There's no way to have a conversation with your documents using handwriting.
+
+## Vision
+
+**"Talk to your papers with a pen."**
+
+Three interaction modes:
+1. **Journal Mode** - Blank page conversation (Tom Riddle diary experience)
+2. **Document Mode** - AI assistant overlaid on PDFs, responds to margin annotations
+3. **Research Mode** - Multi-document context, cross-reference questions
 
 ## Target Users
 
-- Harry Potter fans with reMarkable tablets
-- Writers seeking creative AI interaction through handwriting
-- Users wanting a unique, immersive journaling experience
-- Developers interested in reMarkable application development
+| Persona | Use Case |
+|---------|----------|
+| Researcher | Annotate papers, ask clarifying questions in margins, get summaries |
+| Student | Interactive textbook reading, explain concepts, quiz me |
+| Writer | Creative brainstorming, character dialogue, world-building |
+| Professional | Annotate contracts/reports, ask "what does this clause mean?" |
+| Harry Potter fan | Magical diary experience |
 
 ## User Stories
 
-### Core Experience
+### Core Experience (All Modes)
 
 | ID | Story | Priority |
 |----|-------|----------|
-| US-01 | As a user, I can write a message with the stylus and see it recognized as text | P0 |
-| US-02 | As a user, I see the AI response appear gradually as if being written by invisible ink | P0 |
-| US-03 | As a user, the journal remembers our conversation within a session | P0 |
-| US-04 | As a user, I can start a new conversation by clearing the page | P1 |
-| US-05 | As a user, I can configure the AI's personality/persona | P2 |
+| US-01 | As a user, I can write with the stylus and see it recognized as text | P0 |
+| US-02 | As a user, I see the AI response appear on the page | P0 |
+| US-03 | As a user, the conversation context persists within a session | P0 |
+| US-04 | As a user, I can switch between interaction modes | P1 |
+| US-05 | As a user, I can configure the AI persona/behavior | P2 |
+
+### Journal Mode (Blank Page)
+
+| ID | Story | Priority |
+|----|-------|----------|
+| US-10 | As a user, I can have a freeform conversation on a blank page | P0 |
+| US-11 | As a user, AI responses appear with a "magical writing" animation | P1 |
+| US-12 | As a user, I can select persona presets (Riddle, tutor, assistant) | P2 |
+| US-13 | As a user, old exchanges fade/compact to make room for new ones | P2 |
+
+### Document Mode (PDF Interaction)
+
+| ID | Story | Priority |
+|----|-------|----------|
+| US-20 | As a user, I can load a PDF and write annotations in margins | P0 |
+| US-21 | As a user, I can circle/underline text and write "explain this" | P0 |
+| US-22 | As a user, the AI sees the PDF content as context | P0 |
+| US-23 | As a user, AI responses appear in a designated area (margin/footer) | P0 |
+| US-24 | As a user, I can ask questions about specific pages or sections | P1 |
+| US-25 | As a user, I can request summaries of highlighted sections | P1 |
+| US-26 | As a user, annotations and AI responses are saved with the document | P2 |
+
+### Research Mode (Multi-Document)
+
+| ID | Story | Priority |
+|----|-------|----------|
+| US-30 | As a user, I can reference multiple documents in context | P2 |
+| US-31 | As a user, I can ask cross-reference questions | P2 |
+| US-32 | As a user, I can build a knowledge base from my annotations | P3 |
 
 ### Writing Experience
 
 | ID | Story | Priority |
 |----|-------|----------|
-| US-10 | As a user, I see my strokes rendered in real-time with low latency | P0 |
-| US-11 | As a user, I can erase strokes using the pen's eraser end | P1 |
-| US-12 | As a user, handwriting recognition works for cursive and print | P0 |
-| US-13 | As a user, I can write anywhere on the page, not just lined areas | P1 |
-
-### Response Display
-
-| ID | Story | Priority |
-|----|-------|----------|
-| US-20 | As a user, AI responses appear in a handwriting-style font | P0 |
-| US-21 | As a user, responses appear with a letter-by-letter animation | P1 |
-| US-22 | As a user, responses fade or sink into the page after reading | P2 |
-| US-23 | As a user, I can scroll through conversation history | P2 |
+| US-40 | As a user, strokes render in real-time (<16ms latency) | P0 |
+| US-41 | As a user, I can erase strokes with the pen's eraser end | P1 |
+| US-42 | As a user, handwriting recognition works for cursive and print | P0 |
+| US-43 | As a user, I can draw selection regions (circle, lasso) | P1 |
 
 ### System
 
 | ID | Story | Priority |
 |----|-------|----------|
-| US-30 | As a user, the app works when I have WiFi connectivity | P0 |
-| US-31 | As a user, I receive clear feedback when offline | P1 |
-| US-32 | As a user, the app doesn't drain my battery excessively | P0 |
-| US-33 | As a user, I can exit the app cleanly with a gesture | P0 |
+| US-50 | As a user, the app works with WiFi connectivity | P0 |
+| US-51 | As a user, I receive clear feedback when offline | P1 |
+| US-52 | As a user, battery drain is acceptable (<10%/hour active) | P0 |
+| US-53 | As a user, I can exit cleanly with a gesture | P0 |
 
 ## Functional Requirements
 
 ### FR-1: Stylus Input Capture
 
 - Capture Wacom digitizer events (position, pressure, tilt)
-- Render strokes at <16ms latency for natural feel
-- Support both pen tip and eraser tool detection
+- Render strokes at <16ms latency
+- Support pen tip and eraser tool detection
 - Detect stroke completion (pen lift) to trigger recognition
+- Support gesture detection (circle, underline, lasso)
 
 ### FR-2: Handwriting Recognition
 
-- Convert stroke data to text with >90% accuracy for legible handwriting
-- Support multiple languages (English minimum, French P1)
-- Process recognition within 500ms of stroke completion
-- Handle cursive, print, and mixed writing styles
+- Convert stroke data to text with >90% accuracy
+- Support English and French (P1: more languages)
+- Process recognition within 500ms
+- Handle cursive, print, and mixed styles
+- Recognize command keywords ("explain", "summarize", "translate")
 
-### FR-3: LLM Integration
+### FR-3: PDF Integration
 
-- Send recognized text to Claude API
-- Maintain conversation context (system prompt + history)
-- Implement Tom Riddle persona via system prompt
-- Handle API errors gracefully with user feedback
-- Respect rate limits and implement retry logic
+- Load and render PDF documents
+- Extract text content for LLM context
+- Detect spatial relationship between annotation and PDF content
+- Support page navigation
+- Preserve PDF rendering quality on e-ink
 
-### FR-4: Response Rendering
+### FR-4: LLM Integration
 
-- Display AI text in handwriting-style typography
-- Animate text appearance (ink materializing effect)
-- Support word wrapping within page bounds
+- Send recognized text + document context to Claude API
+- Support long context (200K tokens for large documents)
+- Implement multiple persona modes via system prompts
+- Stream responses for progressive display
+- Handle API errors gracefully
+
+### FR-5: Response Rendering
+
+- Display AI text in configurable typography
+- Journal mode: handwriting-style font with animation
+- Document mode: clean sans-serif in designated zones
+- Support word wrapping within bounds
 - Implement appropriate e-ink refresh strategy
 
-### FR-5: Session Management
+### FR-6: Context Management
 
 - Maintain conversation history during session
-- Clear conversation on explicit user action (gesture/button)
-- Persist API key securely on device
+- Include relevant document sections in context
+- Implement smart context windowing for long documents
+- Clear/reset conversation on user action
+
+## Interaction Patterns
+
+### Journal Mode
+```
+┌─────────────────────────────────────┐
+│                                     │
+│   User writes: "What is love?"      │
+│                                     │
+│   ─────────────────────────────     │
+│                                     │
+│   AI responds: "A curious           │
+│   question. Love is perhaps         │
+│   the most powerful magic..."       │
+│                                     │
+│   User writes: "Tell me more"       │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+### Document Mode
+```
+┌─────────────────────────────────────┐
+│  PDF Content          │  Margin     │
+│  ─────────────────    │             │
+│  "The transformer     │  [User      │
+│  architecture uses    │  circles    │
+│  (self-attention)     │  "attention"│
+│  mechanisms to..."    │  writes:    │
+│                       │  "explain?"]│
+│                       │             │
+│                       │  AI: "Self- │
+│                       │  attention  │
+│                       │  allows..." │
+├───────────────────────┴─────────────┤
+│  [Page navigation]  [Mode toggle]   │
+└─────────────────────────────────────┘
+```
 
 ## Non-Functional Requirements
 
@@ -103,68 +185,84 @@ E-ink tablets excel at distraction-free writing but lack interactive, magical ex
 |--------|--------|
 | Stroke rendering latency | <16ms |
 | Recognition latency | <500ms |
-| LLM response start | <2s (network dependent) |
+| PDF page render | <1s |
+| LLM response start | <2s (network) |
 | CPU usage (idle) | <1% |
 | CPU usage (active) | <10% |
-| Memory footprint | <50MB |
+| Memory (journal) | <50MB |
+| Memory (PDF loaded) | <150MB |
 
 ### Reliability
 
-- Graceful degradation when offline
+- Graceful offline degradation (view PDF, save annotations locally)
 - No data loss on unexpected termination
 - Recovery from API failures without crash
-
-### Usability
-
-- No tutorial required for basic use
-- Single-hand operation possible
-- Works in any screen orientation (portrait default)
+- PDF rendering stability
 
 ### Security
 
 - API key stored in user-readable config only
-- No transmission of data beyond recognition + LLM APIs
-- No persistent logging of conversation content
+- Document content sent only to configured LLM API
+- No persistent logging of document content
+- Local annotation storage
 
 ## Out of Scope (v1.0)
 
 - Offline LLM inference
-- Custom persona creation UI
-- Multi-page document support
-- Export conversation to PDF/text
+- EPUB/other document formats
 - Voice input/output
-- reMarkable Paper Pro specific features
-- Cloud sync of conversations
+- Handwriting-to-LaTeX conversion
+- Cloud sync of annotations
+- Multi-user collaboration
+- reMarkable Paper Pro color features
+
+## Phased Delivery
+
+### Phase 1: Journal Mode (MVP)
+- Blank page conversation
+- Basic HWR + LLM integration
+- Single persona (assistant)
+
+### Phase 2: Document Mode
+- PDF loading and rendering
+- Margin annotation detection
+- Document context in LLM
+
+### Phase 3: Enhanced Experience
+- Multiple personas
+- Animation effects
+- Gesture commands
+- Annotation persistence
+
+### Phase 4: Research Mode
+- Multi-document context
+- Cross-reference queries
+- Knowledge base features
 
 ## Success Metrics
 
 | Metric | Target |
 |--------|--------|
-| Recognition accuracy | >90% for legible writing |
-| End-to-end response time | <5s (network dependent) |
+| Recognition accuracy | >90% legible writing |
+| End-to-end response | <5s (network dependent) |
 | Session stability | No crashes in 1-hour sessions |
-| Battery impact | <10% per hour of active use |
+| PDF render fidelity | Readable at native zoom |
+| Battery impact | <10% per hour active |
 
 ## Dependencies
 
 | Dependency | Purpose | Risk |
 |------------|---------|------|
-| libremarkable | Device I/O framework | Medium - community maintained |
-| Google Input Tools | Handwriting recognition | Low - stable, undocumented |
-| Claude API | LLM responses | Low - commercial SLA |
-| reMarkable device | Target hardware | Low - owned by user |
-
-## Timeline
-
-| Phase | Scope |
-|-------|-------|
-| Alpha | Stroke capture + recognition + basic LLM response |
-| Beta | Animation, persona tuning, error handling |
-| Release | Polish, performance optimization, documentation |
+| libremarkable | Device I/O | Medium - community |
+| Google Input Tools | HWR | Low - stable |
+| Claude API | LLM | Low - commercial |
+| pdf-rs or similar | PDF parsing | Low - mature |
+| reMarkable device | Hardware | Low |
 
 ## Open Questions
 
-1. Should responses fade/disappear like in the movie, or persist?
-2. What gesture should clear the conversation?
-3. Should we support the reMarkable 1 or focus on rM2 only?
-4. How to handle very long AI responses on limited screen?
+1. How to handle very long PDFs (100+ pages) in context?
+2. Should AI responses be saved into the PDF or separate sidecar?
+3. Gesture vocabulary: what triggers AI vs. regular annotation?
+4. How to visually distinguish user writing from AI responses?
+5. Support reMarkable 1, rM2, or Paper Pro only?
