@@ -12,6 +12,7 @@ This directory contains the Architecture Decision Records (ADRs) for the Jedusor
 | [004](004-device-framework.md) | Device Framework | Accepted | **libremarkable** selected over direct evdev, Qt Quick, Toltec |
 | [005](005-response-animation.md) | Response Animation | Accepted | **Character/word streaming** selected over fade-in, all-at-once |
 | [006](006-existing-projects-analysis.md) | Existing Projects Analysis | Informational | Gap analysis of reMarkableAI, armrest, whiteboard-hypercard, ScribbleGPT |
+| [007](007-pdf-integration.md) | PDF Integration | Accepted | **lopdf + mupdf** selected over Poppler, pdf.js, pure pdf-rs |
 
 ## Decision Summary
 
@@ -26,6 +27,7 @@ This directory contains the Architecture Decision Records (ADRs) for the Jedusor
 │  Recognition:  Google Input Tools API   │
 │  LLM:          Claude (Anthropic API)   │
 │  Animation:    Streaming + Partial GC16 │
+│  PDF:          lopdf + mupdf            │
 └─────────────────────────────────────────┘
 ```
 
@@ -47,6 +49,9 @@ This directory contains the Architecture Decision Records (ADRs) for the Jedusor
 | Framework | Direct evdev | Reinventing solved problems |
 | Animation | Fade-in | E-ink doesn't support opacity |
 | Animation | All-at-once | Loses magical effect |
+| PDF | Poppler | Cross-compilation complexity, binary size |
+| PDF | pdf.js | Requires WebView, memory hungry |
+| PDF | Pure pdf-rs | Insufficient rendering quality |
 
 ## ADR Template
 
@@ -76,8 +81,8 @@ When adding new ADRs, use this template:
 
 ## Future ADRs (Planned)
 
-- ADR-007: Conversation persistence strategy
-- ADR-008: Configuration management
-- ADR-009: Error handling and offline behavior
-- ADR-010: Testing strategy
-- ADR-011: Multi-language support
+- ADR-008: Conversation persistence strategy
+- ADR-009: Configuration management
+- ADR-010: Error handling and offline behavior
+- ADR-011: Testing strategy
+- ADR-012: Multi-language support

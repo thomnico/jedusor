@@ -4,39 +4,56 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Jedusor** is an interactive journal application for reMarkable tablets that recreates the Tom Riddle diary experience from Harry Potter. Users write with the stylus, the handwriting is recognized, sent to an LLM (Claude), and the AI response appears as if written by magic on the e-ink display.
+**Jedusor** is a stylus-first AI interaction layer for reMarkable tablets. Write questions, annotations, or commands by hand—the AI responds directly on the e-ink display.
+
+Three interaction modes:
+
+1. **Journal Mode** - Blank page conversation (magical diary experience)
+2. **Document Mode** - AI assistant overlaid on PDFs, responds to margin annotations
+3. **Research Mode** - Multi-document context, cross-reference questions (future)
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    reMarkable Tablet                        │
-├─────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐    ┌──────────────┐    ┌───────────────┐  │
-│  │ Stylus Input │───▶│  Stroke      │───▶│  Handwriting  │  │
-│  │ (Wacom)      │    │  Capture     │    │  Recognition  │  │
-│  └─────────────┘    └──────────────┘    └───────┬───────┘  │
-│                                                  │          │
-│  ┌─────────────┐    ┌──────────────┐    ┌───────▼───────┐  │
-│  │ E-Ink       │◀───│  Response    │◀───│  LLM API      │  │
-│  │ Display     │    │  Renderer    │    │  (Claude)     │  │
-│  └─────────────┘    └──────────────┘    └───────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│                       reMarkable Tablet                           │
+├───────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌─────────────┐    ┌──────────────┐    ┌───────────────┐        │
+│  │ Stylus Input │───▶│  Stroke      │───▶│  Handwriting  │        │
+│  │ (Wacom)      │    │  Capture     │    │  Recognition  │        │
+│  └─────────────┘    └──────────────┘    └───────┬───────┘        │
+│                                                  │                │
+│  ┌─────────────┐                        ┌───────▼───────┐        │
+│  │ PDF Module  │───────────────────────▶│  Context      │        │
+│  │ (lopdf +    │  (page text, regions)  │  Manager      │        │
+│  │  mupdf)     │                        └───────┬───────┘        │
+│  └─────────────┘                                │                │
+│                                                  │                │
+│  ┌─────────────┐    ┌──────────────┐    ┌───────▼───────┐        │
+│  │ E-Ink       │◀───│  Response    │◀───│  LLM API      │        │
+│  │ Display     │    │  Renderer    │    │  (Claude)     │        │
+│  └─────────────┘    └──────────────┘    └───────────────┘        │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
 ### Core Components
 
-1. **Input Handler** (`src/input/`) - Captures Wacom stylus strokes using libremarkable's evdev-based input system
-2. **Stroke Engine** (`src/stroke/`) - Collects and processes pen strokes into recognizable patterns
-3. **Recognition Service** (`src/recognition/`) - Converts strokes to text (Google Handwriting API or on-device)
-4. **LLM Client** (`src/llm/`) - Manages Claude API communication with Tom Riddle persona
-5. **Renderer** (`src/render/`) - Displays AI responses on e-ink with ink-appearing animation
-6. **App Context** (`src/app.rs`) - Main application state and event loop
+1. **Input Handler** (`src/input/`) - Wacom stylus strokes + gesture detection (circle, underline, lasso)
+2. **Stroke Engine** (`src/stroke/`) - Stroke collection, gesture recognition
+3. **Recognition Service** (`src/recognition/`) - Handwriting to text (Google Input Tools API)
+4. **PDF Module** (`src/pdf/`) - Document loading, rendering, text extraction (lopdf + mupdf)
+5. **Context Manager** (`src/context/`) - Combines annotations + document content for LLM
+6. **LLM Client** (`src/llm/`) - Claude API with persona management
+7. **Renderer** (`src/render/`) - E-ink optimized display with streaming animation
+8. **App Context** (`src/app.rs`) - Mode switching, state, event loop
 
 ## Technology Stack
 
 - **Language**: Rust (MSRV 1.80+)
 - **Framework**: [libremarkable](https://github.com/canselcik/libremarkable) 0.7.x
+- **PDF**: lopdf (text extraction) + mupdf (rendering)
 - **Target**: `armv7-unknown-linux-gnueabihf` (reMarkable 1/2)
 - **Build Tool**: `cross` (recommended) or official reMarkable toolchain
 
@@ -87,9 +104,11 @@ scp target/armv7-unknown-linux-gnueabihf/release/jedusor root@10.11.99.1: && ssh
 ## Configuration
 
 Environment variables (set on device or in `.env`):
+
 - `ANTHROPIC_API_KEY` - Claude API key (required)
-- `JEDUSOR_MODEL` - Claude model to use (default: `claude-sonnet-4-20250514`)
-- `JEDUSOR_RECOGNITION` - Handwriting backend: `google` or `local` (default: `google`)
+- `JEDUSOR_MODEL` - Claude model (default: `claude-sonnet-4-20250514`)
+- `JEDUSOR_RECOGNITION` - HWR backend: `google` or `local` (default: `google`)
+- `JEDUSOR_MODE` - Startup mode: `journal` or `document` (default: `journal`)
 
 ## Key Implementation Notes
 
@@ -120,10 +139,12 @@ app.start_event_loop(false, true, false, |ctx, event| {
 
 ### E-Ink Refresh Modes
 
-- **Full**: Complete screen refresh, eliminates ghosting
-- **Partial (DU)**: Fast, binary-only, for UI elements
-- **Partial (GC16)**: Quality grayscale, for final text display
-- **Partial (A2)**: Fastest, for real-time stroke feedback
+| Mode | Use Case | Speed |
+|------|----------|-------|
+| Full (GC16) | Page clear, final render | ~450ms |
+| Partial (DU) | UI elements, buttons | ~120ms |
+| Partial (GC16) | Text display | ~260ms |
+| Partial (A2) | Real-time strokes | ~50ms |
 
 ### Performance Considerations
 
@@ -132,14 +153,29 @@ app.start_event_loop(false, true, false, |ctx, event| {
 - Batch UI updates when possible
 - Release builds achieve 0% idle, 1-2% peak CPU
 
+### PDF Context Strategy
+
+For large documents, use windowed context:
+
+```rust
+enum ContextStrategy {
+    CurrentPage,                           // Only current page
+    Window { before: usize, after: usize }, // Adjacent pages
+    AnnotatedPages,                        // Pages with user annotations
+    SemanticSearch { query: String },      // Relevant sections
+}
+```
+
 ## Handwriting Recognition
 
-Two approaches supported:
+**Google Input Tools API** (default):
 
-1. **Google Input Tools** (default): Send stroke coordinates to `inputtools/request` endpoint - fast, accurate, works for cursive
-2. **Local/Offline**: Integration with mlc or on-device model (future)
+- Send stroke coordinates to `inputtools/request` endpoint
+- Fast, accurate, works for cursive
+- Requires network
 
-Stroke format for Google API:
+Stroke format:
+
 ```json
 {
   "ink": [[x1, x2, ...], [y1, y2, ...], [t1, t2, ...]],
@@ -147,50 +183,64 @@ Stroke format for Google API:
 }
 ```
 
-## LLM Persona
-
-System prompt establishes Tom Riddle character:
-- Responds as if the journal itself is sentient
-- Curious about the writer
-- Maintains Harry Potter lore accuracy
-- Elegant, slightly formal Victorian writing style
-
 ## Project Structure
 
 ```
 jedusor/
 ├── Cargo.toml
 ├── CLAUDE.md
+├── docs/
+│   ├── PRD.md                # Product requirements
+│   └── ADR/                  # Architecture decisions
+│       ├── 000-index.md
+│       ├── 001-programming-language.md
+│       ├── 002-handwriting-recognition.md
+│       ├── 003-llm-provider.md
+│       ├── 004-device-framework.md
+│       ├── 005-response-animation.md
+│       ├── 006-existing-projects-analysis.md
+│       └── 007-pdf-integration.md
 ├── src/
-│   ├── main.rs           # Entry point
-│   ├── app.rs            # ApplicationContext wrapper
+│   ├── main.rs               # Entry point
+│   ├── app.rs                # Mode switching, state
 │   ├── input/
 │   │   ├── mod.rs
-│   │   └── wacom.rs      # Stylus event handling
+│   │   ├── wacom.rs          # Stylus events
+│   │   └── gesture.rs        # Circle, underline detection
 │   ├── stroke/
 │   │   ├── mod.rs
-│   │   └── collector.rs  # Stroke aggregation
+│   │   └── collector.rs      # Stroke aggregation
 │   ├── recognition/
 │   │   ├── mod.rs
-│   │   ├── google.rs     # Google handwriting API
-│   │   └── traits.rs     # Recognition trait
+│   │   ├── google.rs         # Google Input Tools
+│   │   └── traits.rs         # Recognition trait
+│   ├── pdf/
+│   │   ├── mod.rs
+│   │   ├── loader.rs         # PDF loading (lopdf)
+│   │   ├── renderer.rs       # Page rendering (mupdf)
+│   │   └── extractor.rs      # Text + position extraction
+│   ├── context/
+│   │   ├── mod.rs
+│   │   └── manager.rs        # LLM context building
 │   ├── llm/
 │   │   ├── mod.rs
-│   │   ├── claude.rs     # Anthropic API client
-│   │   └── persona.rs    # Tom Riddle prompt
+│   │   ├── claude.rs         # Anthropic API
+│   │   └── persona.rs        # System prompts
 │   └── render/
 │       ├── mod.rs
-│       ├── text.rs       # Text layout
-│       └── animation.rs  # Ink appearance effect
+│       ├── text.rs           # Text layout
+│       ├── animation.rs      # Streaming reveal
+│       └── zones.rs          # Response areas (margin/footer)
 ├── assets/
-│   └── fonts/            # Handwriting-style fonts
+│   └── fonts/                # Typography
 └── tests/
 ```
 
 ## References
 
-- [libremarkable GitHub](https://github.com/canselcik/libremarkable)
-- [libremarkable docs](https://docs.rs/libremarkable)
+- [libremarkable](https://github.com/canselcik/libremarkable) - Device framework
+- [lopdf](https://github.com/J-F-Liu/lopdf) - PDF text extraction
+- [mupdf](https://mupdf.com/) - PDF rendering
 - [reMarkable Developer SDK](https://developer.remarkable.com/documentation/sdk)
 - [awesome-reMarkable](https://github.com/reHackable/awesome-reMarkable)
-- Similar projects: [ScribbleGPT](https://blog.memsranga.com/scribblegpt-building-a-basic-handwriting-driven-chatbot), [diary.ycmjason.com](https://github.com/ycmjason/diary.ycmjason.com)
+- Similar: [reMarkableAI](https://github.com/nickian/reMarkableAI), [armrest](https://github.com/bkirwi/armrest)
