@@ -1,0 +1,9 @@
+# Default target removed for local development
+# Use `cross build --target armv7-unknown-linux-gnueabihf` for reMarkable builds
+
+[target.armv7-unknown-linux-gnueabihf]
+linker = "arm-linux-gnueabihf-gcc"
+
+# Alternative musl target for static linking
+[target.armv7-unknown-linux-musleabihf]
+linker = "arm-linux-musleabihf-gcc"
