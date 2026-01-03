@@ -44,6 +44,43 @@ Three launcher scripts are available on the device:
 
 All scripts automatically handle stopping/starting xochitl.
 
+## Launcher Integration (Optional)
+
+For easier access from the reMarkable UI, install a launcher through Toltec:
+
+### Install Toltec (Package Manager)
+
+```bash
+# SSH into device
+ssh root@$REMARKABLE_IP
+
+# Install Toltec
+wget https://toltec-dev.org/bootstrap
+bash bootstrap
+```
+
+### Install a Launcher
+
+Choose one of these launchers:
+
+**Option 1: Remux** (Recommended - simple and stable)
+```bash
+opkg install remux
+systemctl enable --now remux
+```
+
+**Option 2: Oxide** (Full desktop environment)
+```bash
+opkg install oxide
+systemctl enable --now tarnish
+```
+
+### Add Jedusor to Launcher
+
+Once installed, launchers automatically discover apps in `/opt/bin/` or with `.draft` files. Your custom apps appear in the launcher menu - just tap to run.
+
+**Note**: Launchers handle stopping xochitl automatically, so you don't need the start-jedusor.sh wrapper when launching from the UI.
+
 ## Controls
 
 - **Draw**: Use stylus to write on screen

@@ -221,6 +221,42 @@ scp target/armv7-unknown-linux-gnueabihf/release/jedusor root@<IP>:/home/root/
 ssh root@<IP> ./start-jedusor.sh
 ```
 
+## Launcher Integration
+
+For production use, integrate with a launcher (Remux or Oxide) installed via Toltec package manager:
+
+### Toltec Installation
+
+```bash
+# On device
+wget https://toltec-dev.org/bootstrap
+bash bootstrap
+```
+
+### Launcher Options
+
+**Remux** (Recommended - lightweight):
+- Simple app launcher added to reMarkable menu
+- Minimal overhead, stable
+- `opkg install remux && systemctl enable --now remux`
+
+**Oxide** (Advanced - full desktop):
+- Complete desktop environment replacement
+- More features but heavier
+- `opkg install oxide && systemctl enable --now tarnish`
+
+### App Discovery
+
+Launchers automatically discover apps via:
+- Binaries in `/opt/bin/`
+- `.draft` configuration files
+- Apps appear in launcher menu for tap-to-run access
+
+**Benefits**:
+- No SSH needed for launching
+- Launchers handle xochitl start/stop automatically
+- Better user experience for daily use
+
 ## Lessons Learned
 
 1. **Architecture Split**: When one component accumulates state (WacomHandler), ensure other components can access it for different purposes (rendering). Adding accessor methods is cleaner than duplicating state.

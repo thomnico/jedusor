@@ -308,6 +308,59 @@ cross build --release --target armv7-unknown-linux-gnueabihf
 
 See [ADR-008: macOS Simulator](ADR/008-macos-simulator.md) for architectural decision details.
 
+## Installation & Deployment
+
+### Development Deployment (SSH)
+
+For testing and development, deploy via SSH:
+
+```bash
+# Build release binary
+cargo zigbuild --release --target armv7-unknown-linux-gnueabihf
+
+# Deploy to device
+scp target/armv7-unknown-linux-gnueabihf/release/jedusor root@10.11.99.1:/home/root/
+
+# Run via SSH
+ssh root@10.11.99.1 ./start-jedusor.sh
+```
+
+### Production Deployment (Launcher Integration)
+
+For daily use, integrate with a launcher via Toltec package manager:
+
+**1. Install Toltec** (one-time setup):
+```bash
+ssh root@10.11.99.1
+wget https://toltec-dev.org/bootstrap
+bash bootstrap
+```
+
+**2. Install a Launcher** (choose one):
+
+- **Remux** (Recommended - lightweight):
+  - Simple app launcher in reMarkable menu
+  - Minimal overhead, stable
+  - `opkg install remux && systemctl enable --now remux`
+
+- **Oxide** (Advanced - full desktop):
+  - Complete desktop environment
+  - More features but heavier resource usage
+  - `opkg install oxide && systemctl enable --now tarnish`
+
+**3. App Discovery**:
+- Launchers automatically discover apps in `/opt/bin/` or via `.draft` files
+- Jedusor appears in launcher menu - tap to run
+- Launchers handle stopping xochitl automatically (exclusive mode)
+
+**Benefits**:
+- No SSH needed for daily use
+- Tap-to-run from device UI
+- Automatic exclusive mode handling
+- Better user experience
+
+See [DEPLOY.md](../DEPLOY.md) for detailed deployment instructions and troubleshooting.
+
 ## Dependencies
 
 | Dependency | Purpose | Risk |
