@@ -3,7 +3,7 @@
 //! Manages mode switching (Journal/Document/Research), state, and the event loop.
 
 use anyhow::Result;
-use log::{info, debug};
+use log::{info, debug, warn};
 
 #[cfg(feature = "device")]
 use crate::input::{WacomHandler, WacomEvent, Tool, GestureDetector, Gesture};
@@ -290,7 +290,8 @@ impl App {
 
     #[cfg(feature = "simulator")]
     fn run_simulator_loop(&mut self) -> Result<()> {
-        use crate::input::{WacomHandler, WacomEvent, Tool, GestureDetector, Gesture};
+        use crate::input::{WacomHandler, WacomEvent, GestureDetector, Gesture};
+        use crate::recognition::{GoogleRecognizer, Recognizer};
         use crate::simulator::SimulatorWindow;
         use crate::stroke::Stroke;
 
@@ -299,9 +300,16 @@ impl App {
         let mut window = SimulatorWindow::new()?;
         let mut wacom_handler = WacomHandler::new();
         let gesture_detector = GestureDetector::new();
+        let recognizer = GoogleRecognizer::new()?;
+
+        info!("Google Input Tools recognizer initialized");
 
         let mut all_strokes: Vec<Stroke> = Vec::new();
         let mut pending_points: Vec<crate::stroke::Point> = Vec::new();
+        let mut recognized_text: Vec<String> = Vec::new();
+
+        // Create tokio runtime for async recognition calls
+        let runtime = tokio::runtime::Runtime::new()?;
 
         info!("Clearing screen");
         window.clear();
@@ -309,7 +317,7 @@ impl App {
         // Draw welcome message
         window.draw_text("Jedusor - Journal Mode (Simulator)", 50, 50);
         window.draw_text("Click and drag to draw strokes", 50, 100);
-        window.draw_text("Circle gesture triggers AI response", 50, 150);
+        window.draw_text("Text will be recognized automatically", 50, 150);
         window.draw_text("Press S to save screenshot", 50, 200);
         window.draw_text("Press ESC to exit", 50, 250);
 
@@ -367,29 +375,57 @@ impl App {
                         debug!("Stroke completed with {} points", stroke.points.len());
                         pending_points.clear();
 
-                        // Check for gestures
-                        match gesture_detector.detect(&stroke) {
+                        // Check for gestures first
+                        let is_gesture = match gesture_detector.detect(&stroke) {
                             Gesture::Circle { center_x, center_y, .. } => {
                                 info!("Circle gesture detected at ({}, {})", center_x, center_y);
 
-                                // Show placeholder AI response
-                                let response_x = (center_x / 15).max(100) as usize;
-                                let response_y = ((center_y / 15) + 50).max(300) as usize;
+                                // Trigger recognition on all strokes
+                                if !all_strokes.is_empty() {
+                                    info!("Recognizing {} accumulated strokes", all_strokes.len());
+                                    match runtime.block_on(recognizer.recognize(&all_strokes)) {
+                                        Ok(result) => {
+                                            info!("Recognized: '{}' (confidence: {:.2})", result.text, result.confidence);
 
-                                window.draw_text("AI: Circle detected!", response_x, response_y);
-                                window.draw_text("(Placeholder response)", response_x, response_y + 20);
+                                            // Display recognized text
+                                            let response_x = (center_x / 15).max(100) as usize;
+                                            let response_y = ((center_y / 15) + 50).max(300) as usize;
+
+                                            window.draw_text(&format!("You wrote: {}", result.text), response_x, response_y);
+                                            window.draw_text(&format!("Confidence: {:.0}%", result.confidence * 100.0), response_x, response_y + 30);
+
+                                            recognized_text.push(result.text);
+
+                                            // Clear strokes after recognition
+                                            all_strokes.clear();
+                                        }
+                                        Err(e) => {
+                                            warn!("Recognition failed: {}", e);
+                                            let response_x = (center_x / 15).max(100) as usize;
+                                            let response_y = ((center_y / 15) + 50).max(300) as usize;
+                                            window.draw_text("Recognition failed (network error?)", response_x, response_y);
+                                        }
+                                    }
+                                } else {
+                                    info!("Circle detected but no strokes to recognize");
+                                }
+                                true
                             }
                             Gesture::Underline { .. } => {
                                 info!("Underline gesture detected");
+                                true
                             }
                             Gesture::Lasso { .. } => {
                                 info!("Lasso gesture detected");
+                                true
                             }
-                            Gesture::None => {
-                                debug!("Regular stroke (no gesture)");
-                            }
-                        }
+                            Gesture::None => false,
+                        };
 
+                        // Add stroke to collection (gestures are also stored)
+                        if !is_gesture {
+                            debug!("Regular stroke added to collection");
+                        }
                         all_strokes.push(stroke);
                     }
                     Ok(None) => {
