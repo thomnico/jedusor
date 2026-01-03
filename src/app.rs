@@ -55,7 +55,18 @@ impl App {
 
         #[cfg(feature = "device")]
         {
-            self.run_device_loop()?;
+            // Set up cleanup handler to restart xochitl on exit
+            let result = self.run_device_loop();
+
+            // Always restart xochitl on exit
+            info!("Restarting xochitl...");
+            std::process::Command::new("systemctl")
+                .arg("start")
+                .arg("xochitl")
+                .status()
+                .ok();
+
+            result?;
         }
 
         #[cfg(feature = "simulator")]
@@ -347,12 +358,57 @@ impl App {
                     match event {
                         libremarkable::input::GPIOEvent::Press { button } => {
                             info!("Button press: {:?}", button);
-                            if button == libremarkable::input::PhysicalButton::POWER {
-                                info!("Power button pressed - exiting");
-                                std::process::exit(0);
-                            }
-                            if button == libremarkable::input::PhysicalButton::MIDDLE {
-                                info!("Middle button pressed - exiting");
+                            if button == libremarkable::input::PhysicalButton::POWER
+                                || button == libremarkable::input::PhysicalButton::MIDDLE
+                            {
+                                let button_name = if button == libremarkable::input::PhysicalButton::POWER {
+                                    "Power"
+                                } else {
+                                    "Middle"
+                                };
+                                info!("{} button pressed - exiting and restarting xochitl", button_name);
+
+                                // Show exit animation
+                                let fb = ctx.get_framebuffer_ref();
+
+                                // Clear screen
+                                fb.clear();
+
+                                // Show exit message
+                                text_renderer.draw_text(
+                                    fb,
+                                    "Exiting Jedusor...",
+                                    500,
+                                    850,
+                                    60.0,
+                                );
+                                text_renderer.draw_text(
+                                    fb,
+                                    "Restarting reMarkable UI",
+                                    450,
+                                    950,
+                                    45.0,
+                                );
+
+                                // Full refresh to show message
+                                fb.full_refresh(
+                                    waveform_mode::WAVEFORM_MODE_GC16,
+                                    display_temp::TEMP_USE_REMARKABLE_DRAW,
+                                    dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+                                    0,
+                                    false,
+                                );
+
+                                // Brief delay so user sees the message
+                                std::thread::sleep(std::time::Duration::from_millis(800));
+
+                                // Restart xochitl
+                                std::process::Command::new("systemctl")
+                                    .arg("start")
+                                    .arg("xochitl")
+                                    .status()
+                                    .ok();
+
                                 std::process::exit(0);
                             }
                         }
