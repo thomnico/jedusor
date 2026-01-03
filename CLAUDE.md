@@ -59,6 +59,21 @@ Three interaction modes:
 
 ## Build Commands
 
+### macOS/Desktop Simulator
+
+```bash
+# Run simulator on macOS (development)
+cargo run --no-default-features --features simulator
+
+# Build simulator
+cargo build --no-default-features --features simulator
+
+# Run tests with simulator feature
+cargo test --no-default-features --features simulator
+```
+
+### reMarkable Device
+
 ```bash
 # Install cross-compilation tool (one-time)
 cargo install cross
@@ -72,11 +87,11 @@ cross build --release --target armv7-unknown-linux-gnueabihf
 # Alternative: musl target for static linking
 cross build --release --target armv7-unknown-linux-musleabihf
 
-# Run tests (host machine)
-cargo test
+# Run tests (host machine, no device/simulator features)
+cargo test --no-default-features
 
 # Run single test
-cargo test test_name
+cargo test test_name --no-default-features
 
 # Check code without building
 cargo check
