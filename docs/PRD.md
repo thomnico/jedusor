@@ -249,11 +249,70 @@ Three interaction modes:
 | PDF render fidelity | Readable at native zoom |
 | Battery impact | <10% per hour active |
 
+## Development Tools
+
+### macOS Simulator
+
+To accelerate development and enable testing without constant device deployment, Jedusor includes a GUI-based simulator for macOS (and other desktop platforms).
+
+**Purpose:**
+- Local development and testing without reMarkable hardware
+- Visual validation of stroke capture and gesture detection
+- Rapid iteration on rendering and layout
+- Lower barrier to entry for contributors
+
+**Implementation:**
+- Window-based simulator using `minifb` crate
+- 1404x1872 display matching reMarkable 2 resolution
+- Mouse input converted to simulated Wacom events
+- Shared rendering pipeline with device code via feature flags
+
+**Capabilities:**
+- ✅ Stroke capture and real-time rendering
+- ✅ Gesture detection (circle, underline, lasso)
+- ✅ Handwriting recognition API integration
+- ✅ LLM interaction and response display
+- ✅ Text layout and typography testing
+- ❌ E-ink refresh mode behavior (device-only)
+- ❌ Pressure sensitivity (mouse lacks pressure data)
+- ❌ ARM performance characteristics
+
+**Architecture:**
+```rust
+// Feature flags enable simulator or device builds
+#[cfg(feature = "device")]
+use libremarkable::*;  // Real device
+
+#[cfg(feature = "simulator")]
+use simulator::*;  // macOS/desktop simulator
+
+// Shared abstractions work on both
+trait InputDevice { ... }
+trait DisplayDevice { ... }
+```
+
+**Usage:**
+```bash
+# Run simulator on macOS
+cargo run --no-default-features --features simulator
+
+# Run on device (cross-compiled)
+cross build --release --target armv7-unknown-linux-gnueabihf
+```
+
+**Limitations:**
+- Simulator validates logic but not e-ink performance
+- Device testing required before production deployment
+- Some device-specific bugs may only appear on hardware
+
+See [ADR-008: macOS Simulator](ADR/008-macos-simulator.md) for architectural decision details.
+
 ## Dependencies
 
 | Dependency | Purpose | Risk |
 |------------|---------|------|
 | libremarkable | Device I/O | Medium - community |
+| minifb | macOS/desktop simulator | Low - stable |
 | Google Input Tools | HWR | Low - stable |
 | Claude API | LLM | Low - commercial |
 | pdf-rs or similar | PDF parsing | Low - mature |
