@@ -26,3 +26,20 @@ jedusor
 
 # Test outputs
 *.log
+
+# Screenshots
+jedusor-screenshot-*.png
+
+# Temporary documentation
+DEBUG-*.md
+TEST-*.md
+DEPLOYMENT.md
+SIMULATOR.md
+
+# Local build/deploy scripts
+build-docker.sh
+deploy-to-device.sh
+test-on-device.sh
+
+# Draft files
+*.draft
