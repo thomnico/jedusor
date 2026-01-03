@@ -1,0 +1,402 @@
+//! Main application state and event loop
+//!
+//! Manages mode switching (Journal/Document/Research), state, and the event loop.
+
+use anyhow::Result;
+use log::{info, debug};
+
+#[cfg(feature = "device")]
+use crate::input::{WacomHandler, WacomEvent, Tool, GestureDetector, Gesture};
+#[cfg(feature = "device")]
+use crate::render::{StrokeRenderer, TextRenderer};
+#[cfg(feature = "device")]
+use crate::stroke::Stroke;
+
+/// Interaction modes
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    /// Blank page conversation (magical diary experience)
+    Journal,
+    /// AI assistant overlaid on PDFs
+    #[allow(dead_code)]
+    Document,
+    /// Multi-document context (future)
+    #[allow(dead_code)]
+    Research,
+}
+
+impl Default for Mode {
+    fn default() -> Self {
+        // Start in Journal mode for MVP
+        Mode::Journal
+    }
+}
+
+/// Main application state
+pub struct App {
+    mode: Mode,
+}
+
+impl App {
+    /// Create a new application instance
+    pub fn new() -> Result<Self> {
+        info!("Initializing application in Journal mode");
+
+        Ok(Self {
+            mode: Mode::default(),
+        })
+    }
+
+    /// Run the main event loop
+    pub fn run(&mut self) -> Result<()> {
+        info!("Starting event loop (mode: {:?})", self.mode);
+
+        #[cfg(feature = "device")]
+        {
+            self.run_device_loop()?;
+        }
+
+        #[cfg(feature = "simulator")]
+        {
+            self.run_simulator_loop()?;
+        }
+
+        #[cfg(not(any(feature = "device", feature = "simulator")))]
+        {
+            info!("Running in development mode (no device or simulator)");
+            info!("Use 'cargo run --no-default-features --features simulator' for simulator");
+            info!("Use 'cross build --target armv7-unknown-linux-gnueabihf' for device builds");
+        }
+
+        Ok(())
+    }
+
+    #[cfg(feature = "device")]
+    fn run_device_loop(&mut self) -> Result<()> {
+        use libremarkable::appctx::ApplicationContext;
+        use libremarkable::input::{InputEvent, gpio, multitouch};
+        use libremarkable::framebuffer::common::*;
+        use libremarkable::framebuffer::{FramebufferRefresh, PartialRefreshMode};
+
+        info!("Initializing reMarkable device");
+
+        let mut app = ApplicationContext::default();
+        let mut wacom_handler = WacomHandler::new();
+        let gesture_detector = GestureDetector::new();
+        let stroke_renderer = StrokeRenderer::new();
+        let text_renderer = TextRenderer::new();
+
+        let mut current_stroke: Option<Stroke> = None;
+        let mut all_strokes: Vec<Stroke> = Vec::new();
+
+        info!("Clearing screen");
+        app.clear();
+        app.full_refresh(
+            waveform_mode::WAVEFORM_MODE_INIT,
+            display_temp::TEMP_USE_REMARKABLE_DRAW,
+            dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+            0,
+            true,
+        );
+
+        // Draw welcome message
+        text_renderer.draw_text(
+            &mut app.framebuffer,
+            "Jedusor - Journal Mode",
+            50,
+            50,
+            50.0,
+        );
+        text_renderer.draw_text(
+            &mut app.framebuffer,
+            "Draw a circle to trigger AI response",
+            50,
+            100,
+            35.0,
+        );
+        text_renderer.draw_text(
+            &mut app.framebuffer,
+            "Double-tap to exit",
+            50,
+            150,
+            35.0,
+        );
+
+        app.partial_refresh(
+            &mxcfb_rect {
+                top: 0,
+                left: 0,
+                width: DISPLAYWIDTH as u32,
+                height: 200,
+            },
+            PartialRefreshMode::Async,
+            waveform_mode::WAVEFORM_MODE_GC16,
+            display_temp::TEMP_USE_REMARKABLE_DRAW,
+            dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+            0,
+            false,
+        );
+
+        info!("Starting event loop - ready for input!");
+
+        app.start_event_loop(true, true, true, |ctx, event| {
+            match event {
+                InputEvent::WacomEvent { event } => {
+                    // Convert libremarkable event to our format
+                    match event {
+                        libremarkable::input::wacom::WacomEvent::Draw { x, y, pressure, .. } => {
+                            let wacom_event = if current_stroke.is_none() {
+                                current_stroke = Some(Stroke::new());
+                                WacomEvent::ToolDown {
+                                    tool: Tool::Pen,
+                                    x: x as i32,
+                                    y: y as i32,
+                                    pressure,
+                                }
+                            } else {
+                                WacomEvent::ToolMove {
+                                    x: x as i32,
+                                    y: y as i32,
+                                    pressure,
+                                }
+                            };
+
+                            if let Ok(completed_stroke) = wacom_handler.handle_event(wacom_event) {
+                                if let Some(stroke) = &current_stroke {
+                                    // Draw stroke in real-time
+                                    stroke_renderer.draw_stroke(
+                                        &mut ctx.framebuffer,
+                                        stroke,
+                                        color::BLACK,
+                                    );
+
+                                    // Partial refresh for stroke area
+                                    if let Some((x_min, y_min, x_max, y_max)) = stroke.bounding_box() {
+                                        ctx.partial_refresh(
+                                            &mxcfb_rect {
+                                                top: y_min.max(0) as u32,
+                                                left: x_min.max(0) as u32,
+                                                width: ((x_max - x_min).max(1) + 20) as u32,
+                                                height: ((y_max - y_min).max(1) + 20) as u32,
+                                            },
+                                            PartialRefreshMode::Async,
+                                            waveform_mode::WAVEFORM_MODE_DU,
+                                            display_temp::TEMP_USE_REMARKABLE_DRAW,
+                                            dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+                                            0,
+                                            false,
+                                        );
+                                    }
+                                }
+
+                                if let Some(stroke) = completed_stroke {
+                                    debug!("Stroke completed with {} points", stroke.points.len());
+
+                                    // Check for gestures
+                                    match gesture_detector.detect(&stroke) {
+                                        Gesture::Circle { center_x, center_y, .. } => {
+                                            info!("Circle gesture detected at ({}, {})", center_x, center_y);
+
+                                            // Show placeholder AI response
+                                            text_renderer.draw_text(
+                                                &mut ctx.framebuffer,
+                                                "AI: This is a placeholder response.",
+                                                center_x.max(100) as usize,
+                                                (center_y + 50).max(200) as usize,
+                                                40.0,
+                                            );
+                                            text_renderer.draw_text(
+                                                &mut ctx.framebuffer,
+                                                "Circle gesture recognized!",
+                                                center_x.max(100) as usize,
+                                                (center_y + 100).max(250) as usize,
+                                                30.0,
+                                            );
+
+                                            ctx.partial_refresh(
+                                                &mxcfb_rect {
+                                                    top: (center_y + 50).max(0) as u32,
+                                                    left: center_x.max(0) as u32,
+                                                    width: 800,
+                                                    height: 200,
+                                                },
+                                                PartialRefreshMode::Async,
+                                                waveform_mode::WAVEFORM_MODE_GC16,
+                                                display_temp::TEMP_USE_REMARKABLE_DRAW,
+                                                dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+                                                0,
+                                                false,
+                                            );
+                                        }
+                                        Gesture::Underline { .. } => {
+                                            info!("Underline gesture detected");
+                                        }
+                                        Gesture::Lasso { .. } => {
+                                            info!("Lasso gesture detected");
+                                        }
+                                        Gesture::None => {
+                                            debug!("Regular stroke (no gesture)");
+                                        }
+                                    }
+
+                                    all_strokes.push(stroke);
+                                    current_stroke = None;
+                                }
+                            }
+                        }
+                        libremarkable::input::wacom::WacomEvent::InstrumentChange { .. } => {
+                            // Tool up event
+                            if let Ok(Some(stroke)) = wacom_handler.handle_event(WacomEvent::ToolUp) {
+                                all_strokes.push(stroke);
+                                current_stroke = None;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                InputEvent::MultitouchEvent { event } => {
+                    match event {
+                        multitouch::MultitouchEvent::Press { finger } => {
+                            if finger.tracking_id == 0 {
+                                info!("Touch detected - checking for exit gesture");
+                            }
+                        }
+                        multitouch::MultitouchEvent::Release { .. } => {
+                            // Simple exit: any multitouch release exits
+                            info!("Touch release - exiting");
+                            std::process::exit(0);
+                        }
+                        _ => {}
+                    }
+                }
+                InputEvent::GPIO { event } => {
+                    match event {
+                        gpio::GPIOEvent::Press { button } => {
+                            info!("Button press: {:?}", button);
+                            if button == gpio::PhysicalButton::POWER {
+                                info!("Power button pressed - exiting");
+                                std::process::exit(0);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        });
+
+        Ok(())
+    }
+
+    #[cfg(feature = "simulator")]
+    fn run_simulator_loop(&mut self) -> Result<()> {
+        use crate::input::{WacomHandler, WacomEvent, Tool, GestureDetector, Gesture};
+        use crate::simulator::SimulatorWindow;
+        use crate::stroke::Stroke;
+
+        info!("Initializing simulator window");
+
+        let mut window = SimulatorWindow::new()?;
+        let mut wacom_handler = WacomHandler::new();
+        let gesture_detector = GestureDetector::new();
+
+        let mut all_strokes: Vec<Stroke> = Vec::new();
+        let mut pending_points: Vec<crate::stroke::Point> = Vec::new();
+
+        info!("Clearing screen");
+        window.clear();
+
+        // Draw welcome message
+        window.draw_text("Jedusor - Journal Mode (Simulator)", 50, 50);
+        window.draw_text("Click and drag to draw strokes", 50, 100);
+        window.draw_text("Circle gesture triggers AI response", 50, 150);
+        window.draw_text("Press ESC to exit", 50, 200);
+
+        info!("Starting simulator event loop - ready for input!");
+
+        while window.is_open() {
+            // Poll for events
+            if let Some(event) = window.poll_event() {
+                // Clone event for drawing (since handler consumes it)
+                let event_for_drawing = match &event {
+                    WacomEvent::ToolDown { tool, x, y, pressure } => {
+                        debug!("ToolDown: {:?} at ({}, {}) pressure={}", tool, x, y, pressure);
+                        Some(crate::stroke::Point {
+                            x: *x,
+                            y: *y,
+                            pressure: *pressure,
+                            timestamp_ms: 0,
+                        })
+                    }
+                    WacomEvent::ToolMove { x, y, pressure } => {
+                        Some(crate::stroke::Point {
+                            x: *x,
+                            y: *y,
+                            pressure: *pressure,
+                            timestamp_ms: 0,
+                        })
+                    }
+                    _ => None,
+                };
+
+                // Add point to pending for real-time drawing
+                if let Some(point) = event_for_drawing {
+                    pending_points.push(point);
+
+                    // Create temp stroke for drawing
+                    let mut temp_stroke = Stroke::new();
+                    for p in &pending_points {
+                        temp_stroke.add_point(*p);
+                    }
+                    window.draw_stroke(&temp_stroke, SimulatorWindow::color_black());
+                }
+
+                // Process event through handler
+                match wacom_handler.handle_event(event) {
+                    Ok(Some(stroke)) => {
+                        // Stroke completed
+                        debug!("Stroke completed with {} points", stroke.points.len());
+                        pending_points.clear();
+
+                        // Check for gestures
+                        match gesture_detector.detect(&stroke) {
+                            Gesture::Circle { center_x, center_y, .. } => {
+                                info!("Circle gesture detected at ({}, {})", center_x, center_y);
+
+                                // Show placeholder AI response
+                                let response_x = (center_x / 15).max(100) as usize;
+                                let response_y = ((center_y / 15) + 50).max(300) as usize;
+
+                                window.draw_text("AI: Circle detected!", response_x, response_y);
+                                window.draw_text("(Placeholder response)", response_x, response_y + 20);
+                            }
+                            Gesture::Underline { .. } => {
+                                info!("Underline gesture detected");
+                            }
+                            Gesture::Lasso { .. } => {
+                                info!("Lasso gesture detected");
+                            }
+                            Gesture::None => {
+                                debug!("Regular stroke (no gesture)");
+                            }
+                        }
+
+                        all_strokes.push(stroke);
+                    }
+                    Ok(None) => {
+                        // Stroke in progress or no stroke
+                    }
+                    Err(e) => {
+                        debug!("Error handling wacom event: {}", e);
+                    }
+                }
+            }
+
+            // Small sleep to prevent busy-waiting
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+
+        info!("Simulator window closed");
+        Ok(())
+    }
+}
