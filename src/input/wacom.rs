@@ -170,37 +170,41 @@ impl WacomHandler {
     pub fn current_tool(&self) -> Option<Tool> {
         self.current_tool
     }
+
+    /// Get reference to current stroke for real-time rendering
+    pub fn current_stroke(&self) -> Option<&Stroke> {
+        self.current_stroke.as_ref()
+    }
 }
 
 #[cfg(feature = "device")]
 mod device {
     use super::*;
-    use libremarkable::input::{InputEvent, wacom};
 
     /// Convert libremarkable Wacom event to our WacomEvent
-    pub fn convert_wacom_event(event: &wacom::WacomEvent) -> Option<WacomEvent> {
+    pub fn convert_wacom_event(event: &libremarkable::input::WacomEvent) -> Option<WacomEvent> {
         match event {
-            wacom::WacomEvent::Draw { x, y, pressure, .. } => {
+            libremarkable::input::WacomEvent::Draw { position, pressure, .. } => {
                 Some(WacomEvent::ToolMove {
-                    x: *x as i32,
-                    y: *y as i32,
+                    x: position.x as i32,
+                    y: position.y as i32,
                     pressure: *pressure,
                 })
             }
-            wacom::WacomEvent::InstrumentChange { pen, .. } => {
+            libremarkable::input::WacomEvent::InstrumentChange { pen, .. } => {
                 // Tool change without position - will be followed by Draw event
                 let tool = match pen {
-                    wacom::Pen::Pen => Tool::Pen,
-                    wacom::Pen::Eraser => Tool::Eraser,
+                    libremarkable::input::WacomPen::ToolPen => Tool::Pen,
+                    libremarkable::input::WacomPen::ToolRubber => Tool::Eraser,
                     _ => return None,
                 };
                 debug!("Tool changed to {:?}", tool);
                 None
             }
-            wacom::WacomEvent::Hover { x, y, .. } => {
+            libremarkable::input::WacomEvent::Hover { position, .. } => {
                 Some(WacomEvent::Hover {
-                    x: *x as i32,
-                    y: *y as i32,
+                    x: position.x as i32,
+                    y: position.y as i32,
                 })
             }
             _ => None,

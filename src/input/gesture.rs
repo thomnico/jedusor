@@ -41,7 +41,7 @@ impl GestureDetector {
     pub fn new() -> Self {
         Self {
             min_points: 10,
-            circle_tolerance: 0.3,
+            circle_tolerance: 0.4,  // More lenient for ovals/imperfect circles
         }
     }
 
@@ -106,8 +106,13 @@ impl GestureDetector {
         let dy = (last.y - first.y) as f32;
         let closure_dist = (dx * dx + dy * dy).sqrt();
 
-        // Must close within 20% of radius
-        if closure_dist > avg_radius * 0.2 {
+        // Must close within 80% of radius (very lenient for hand-drawn circles on e-ink)
+        let closure_ratio = closure_dist / avg_radius;
+        if closure_dist > avg_radius * 0.8 {
+            debug!(
+                "Circle rejected: closure too large (dist={:.1}, ratio={:.2}, threshold=0.80)",
+                closure_dist, closure_ratio
+            );
             return None;
         }
 
@@ -124,10 +129,21 @@ impl GestureDetector {
 
         let avg_deviation: f32 = deviations.iter().sum::<f32>() / deviations.len() as f32;
 
+        // Require minimum radius to avoid detecting letters (O, o) as gestures
+        // Typical letter O is ~15-30px radius, gesture should be 80px+ radius
+        const MIN_GESTURE_RADIUS: f32 = 80.0;
+        if avg_radius < MIN_GESTURE_RADIUS {
+            debug!(
+                "Circle rejected: too small (radius={:.1} < {})",
+                avg_radius, MIN_GESTURE_RADIUS
+            );
+            return None;
+        }
+
         if avg_deviation < self.circle_tolerance {
             debug!(
-                "Circle detected at ({}, {}) radius={}",
-                center_x, center_y, avg_radius as i32
+                "✅ Circle detected at ({}, {}) radius={}, deviation={:.2}",
+                center_x, center_y, avg_radius as i32, avg_deviation
             );
             Some(Gesture::Circle {
                 center_x,
@@ -135,6 +151,10 @@ impl GestureDetector {
                 radius: avg_radius as i32,
             })
         } else {
+            debug!(
+                "Circle rejected: deviation too high ({:.2} > {:.2})",
+                avg_deviation, self.circle_tolerance
+            );
             None
         }
     }
@@ -148,6 +168,18 @@ impl GestureDetector {
 
         let points = &stroke.points;
         if points.is_empty() {
+            return None;
+        }
+
+        // Reject if stroke is closed (likely a circle/lasso, not an underline)
+        let first = &points[0];
+        let last = &points[points.len() - 1];
+        let closure_dist = {
+            let dx = (last.x - first.x) as f32;
+            let dy = (last.y - first.y) as f32;
+            (dx * dx + dy * dy).sqrt()
+        };
+        if closure_dist < 100.0 {  // Closed shape, not an underline
             return None;
         }
 
