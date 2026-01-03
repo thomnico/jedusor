@@ -10,6 +10,9 @@ use minifb::{Window, WindowOptions, Key, MouseMode, MouseButton};
 #[cfg(feature = "simulator")]
 use image::{RgbImage, Rgb};
 
+#[cfg(feature = "simulator")]
+use rusttype::{Font, Scale, point};
+
 use crate::input::wacom::{WacomEvent, Tool, WACOM_MAX_X, WACOM_MAX_Y};
 use crate::stroke::{Point, Stroke};
 
@@ -32,6 +35,9 @@ pub struct SimulatorWindow {
     mouse_down: bool,
     /// Last mouse position (for tracking)
     last_mouse_pos: Option<(f32, f32)>,
+    /// Font for text rendering
+    #[cfg(feature = "simulator")]
+    font: Font<'static>,
 }
 
 impl SimulatorWindow {
@@ -55,11 +61,20 @@ impl SimulatorWindow {
 
         let buffer = vec![COLOR_WHITE; DISPLAY_WIDTH * DISPLAY_HEIGHT];
 
+        // Load embedded font (Caveat - cursive/handwriting style)
+        #[cfg(feature = "simulator")]
+        let font_data = include_bytes!("../../assets/fonts/Caveat-Regular.ttf");
+        #[cfg(feature = "simulator")]
+        let font = Font::try_from_bytes(font_data as &[u8])
+            .ok_or_else(|| anyhow::anyhow!("Failed to load Caveat font"))?;
+
         Ok(Self {
             window,
             buffer,
             mouse_down: false,
             last_mouse_pos: None,
+            #[cfg(feature = "simulator")]
+            font,
         })
     }
 
@@ -220,24 +235,56 @@ impl SimulatorWindow {
         self.buffer.fill(COLOR_WHITE);
     }
 
-    /// Draw text at position (basic implementation)
+    /// Draw text at position with rusttype
+    #[cfg(feature = "simulator")]
     pub fn draw_text(&mut self, text: &str, x: usize, y: usize) {
-        // For now, just draw a placeholder rectangle where text would go
-        // TODO: Use a bitmap font or text rendering library
-        let text_width = text.len() * 8;  // Approximate 8px per char
-        let text_height = 16;
-
         debug!("Drawing text '{}' at ({}, {})", text, x, y);
 
-        // Draw a simple rectangle to indicate text area
-        for py in y..y + text_height {
-            for px in x..x + text_width {
-                if px < DISPLAY_WIDTH && py < DISPLAY_HEIGHT {
-                    let idx = py * DISPLAY_WIDTH + px;
-                    self.buffer[idx] = 0xCCCCCC; // Light gray
-                }
+        // Font size (height in pixels) - slightly larger for cursive font readability
+        let font_size = 28.0;
+        let scale = Scale::uniform(font_size);
+
+        // Starting position
+        let start_point = point(x as f32, y as f32 + font_size);
+
+        // Layout the glyphs
+        let glyphs: Vec<_> = self.font
+            .layout(text, scale, start_point)
+            .collect();
+
+        // Draw each glyph
+        for glyph in glyphs {
+            if let Some(bounding_box) = glyph.pixel_bounding_box() {
+                glyph.draw(|gx, gy, v| {
+                    let px = (bounding_box.min.x + gx as i32) as usize;
+                    let py = (bounding_box.min.y + gy as i32) as usize;
+
+                    if px < DISPLAY_WIDTH && py < DISPLAY_HEIGHT {
+                        let idx = py * DISPLAY_WIDTH + px;
+
+                        // Alpha blending: v is coverage (0.0-1.0)
+                        // Blend black text onto white/existing background
+                        let existing_color = self.buffer[idx];
+                        let r = ((existing_color >> 16) & 0xFF) as f32;
+                        let g = ((existing_color >> 8) & 0xFF) as f32;
+                        let b = (existing_color & 0xFF) as f32;
+
+                        // Blend with black (0, 0, 0)
+                        let new_r = (r * (1.0 - v)) as u8;
+                        let new_g = (g * (1.0 - v)) as u8;
+                        let new_b = (b * (1.0 - v)) as u8;
+
+                        self.buffer[idx] = ((new_r as u32) << 16) | ((new_g as u32) << 8) | (new_b as u32);
+                    }
+                });
             }
         }
+    }
+
+    /// Draw text at position (no-op when simulator feature is disabled)
+    #[cfg(not(feature = "simulator"))]
+    pub fn draw_text(&mut self, _text: &str, _x: usize, _y: usize) {
+        // No-op
     }
 
     /// Get black color constant

@@ -18,12 +18,13 @@ libremarkable = { version = "0.7", optional = true }
 # GUI simulator for macOS/desktop development
 minifb = { version = "0.27", optional = true }
 image = { version = "0.25", optional = true }
+rusttype = { version = "0.9", optional = true }
 
 # Async runtime
 tokio = { version = "1.35", features = ["full"] }
 
 # HTTP client for APIs
-reqwest = { version = "0.11", features = ["json", "stream"] }
+reqwest = { version = "0.11", features = ["json", "stream", "native-tls-vendored"] }
 
 # JSON serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -52,7 +53,7 @@ default = ["device"]
 # Device features (requires Linux target)
 device = ["libremarkable"]
 # Simulator for macOS/desktop development
-simulator = ["minifb", "image"]
+simulator = ["minifb", "image", "rusttype"]
 # PDF support (for future Document Mode)
 pdf = ["lopdf"]
 
