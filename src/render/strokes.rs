@@ -31,10 +31,8 @@ impl StrokeRenderer {
             let p2 = &window[1];
 
             framebuffer.draw_line(
-                p1.x as usize,
-                p1.y as usize,
-                p2.x as usize,
-                p2.y as usize,
+                (p1.x, p1.y).into(),  // Point2<i32>
+                (p2.x, p2.y).into(),  // Point2<i32>
                 3, // Line width
                 color,
             );

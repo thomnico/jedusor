@@ -23,7 +23,14 @@ impl TextRenderer {
     where
         T: FramebufferDraw,
     {
-        framebuffer.draw_text(y, x, text, size);
+        use libremarkable::framebuffer::common::color;
+        framebuffer.draw_text(
+            (x as f32, y as f32).into(),  // Point2<f32>
+            text,
+            size,
+            color::BLACK,
+            false,  // dryrun
+        );
     }
 
     #[cfg(not(feature = "device"))]
