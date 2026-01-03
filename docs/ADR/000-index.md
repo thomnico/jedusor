@@ -13,6 +13,7 @@ This directory contains the Architecture Decision Records (ADRs) for the Jedusor
 | [005](005-response-animation.md) | Response Animation | Accepted | **Character/word streaming** selected over fade-in, all-at-once |
 | [006](006-existing-projects-analysis.md) | Existing Projects Analysis | Informational | Gap analysis of reMarkableAI, armrest, whiteboard-hypercard, ScribbleGPT |
 | [007](007-pdf-integration.md) | PDF Integration | Accepted | **lopdf + mupdf** selected over Poppler, pdf.js, pure pdf-rs |
+| [008](008-macos-simulator.md) | macOS Development Simulator | Accepted | **GUI simulator with minifb** selected over terminal-based, web-based |
 
 ## Decision Summary
 
@@ -24,6 +25,7 @@ This directory contains the Architecture Decision Records (ADRs) for the Jedusor
 ├─────────────────────────────────────────┤
 │  Language:     Rust                     │
 │  Framework:    libremarkable 0.7.x      │
+│  Simulator:    minifb (macOS/desktop)   │
 │  Recognition:  Google Input Tools API   │
 │  LLM:          Claude (Anthropic API)   │
 │  Animation:    Streaming + Partial GC16 │
@@ -52,6 +54,8 @@ This directory contains the Architecture Decision Records (ADRs) for the Jedusor
 | PDF | Poppler | Cross-compilation complexity, binary size |
 | PDF | pdf.js | Requires WebView, memory hungry |
 | PDF | Pure pdf-rs | Insufficient rendering quality |
+| Simulator | Terminal-based | No visual feedback, poor UX |
+| Simulator | Web-based | Over-engineered, separate codebase |
 
 ## ADR Template
 
@@ -81,8 +85,8 @@ When adding new ADRs, use this template:
 
 ## Future ADRs (Planned)
 
-- ADR-008: Conversation persistence strategy
-- ADR-009: Configuration management
-- ADR-010: Error handling and offline behavior
-- ADR-011: Testing strategy
-- ADR-012: Multi-language support
+- ADR-009: Conversation persistence strategy
+- ADR-010: Configuration management
+- ADR-011: Error handling and offline behavior
+- ADR-012: Testing strategy
+- ADR-013: Multi-language support
