@@ -11,6 +11,8 @@ use crate::input::{WacomHandler, WacomEvent, Tool, GestureDetector, Gesture};
 use crate::render::{StrokeRenderer, TextRenderer};
 #[cfg(feature = "device")]
 use crate::stroke::Stroke;
+#[cfg(feature = "device")]
+use crate::recognition::{GoogleRecognizer, Recognizer};
 
 /// Interaction modes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,50 +88,25 @@ impl App {
         let stroke_renderer = StrokeRenderer::new();
         let text_renderer = TextRenderer::new();
 
-        let mut current_stroke: Option<Stroke> = None;
+        // Create recognizer and runtime for async API calls
+        let recognizer = GoogleRecognizer::new()?;
+        let runtime = tokio::runtime::Runtime::new()?;
+        info!("Google Input Tools recognizer initialized");
+
         let mut all_strokes: Vec<Stroke> = Vec::new();
 
         info!("Clearing screen");
-        app.clear();
-        app.full_refresh(
-            waveform_mode::WAVEFORM_MODE_INIT,
-            display_temp::TEMP_USE_REMARKABLE_DRAW,
-            dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
-            0,
-            true,
-        );
+        app.clear(true);
 
-        // Draw welcome message
-        text_renderer.draw_text(
-            &mut app.framebuffer,
-            "Jedusor - Journal Mode",
-            50,
-            50,
-            50.0,
-        );
-        text_renderer.draw_text(
-            &mut app.framebuffer,
-            "Draw a circle to trigger AI response",
-            50,
-            100,
-            35.0,
-        );
-        text_renderer.draw_text(
-            &mut app.framebuffer,
-            "Double-tap to exit",
-            50,
-            150,
-            35.0,
-        );
+        // Draw welcome instructions
+        let fb = app.get_framebuffer_ref();
+        text_renderer.draw_text(fb, "Jedusor - Journal Mode", 50, 50, 50.0);
+        text_renderer.draw_text(fb, "Draw with stylus - strokes appear in real-time", 50, 120, 35.0);
+        text_renderer.draw_text(fb, "Draw a circle to trigger handwriting recognition", 50, 170, 35.0);
+        text_renderer.draw_text(fb, "Press middle button to exit", 50, 220, 35.0);
 
-        app.partial_refresh(
-            &mxcfb_rect {
-                top: 0,
-                left: 0,
-                width: DISPLAYWIDTH as u32,
-                height: 200,
-            },
-            PartialRefreshMode::Async,
+        // Full screen refresh for instructions
+        fb.full_refresh(
             waveform_mode::WAVEFORM_MODE_GC16,
             display_temp::TEMP_USE_REMARKABLE_DRAW,
             dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
@@ -144,41 +121,52 @@ impl App {
                 InputEvent::WacomEvent { event } => {
                     // Convert libremarkable event to our format
                     match event {
-                        libremarkable::input::wacom::WacomEvent::Draw { x, y, pressure, .. } => {
-                            let wacom_event = if current_stroke.is_none() {
-                                current_stroke = Some(Stroke::new());
+                        libremarkable::input::WacomEvent::Draw { position, pressure, .. } => {
+                            debug!("📝 Wacom Draw event: pos=({:.1}, {:.1}), pressure={}",
+                                   position.x, position.y, pressure);
+
+                            let wacom_event = if !wacom_handler.is_drawing() {
+                                debug!("✏️  Starting new stroke");
                                 WacomEvent::ToolDown {
                                     tool: Tool::Pen,
-                                    x: x as i32,
-                                    y: y as i32,
+                                    x: position.x as i32,
+                                    y: position.y as i32,
                                     pressure,
                                 }
                             } else {
                                 WacomEvent::ToolMove {
-                                    x: x as i32,
-                                    y: y as i32,
+                                    x: position.x as i32,
+                                    y: position.y as i32,
                                     pressure,
                                 }
                             };
 
                             if let Ok(completed_stroke) = wacom_handler.handle_event(wacom_event) {
-                                if let Some(stroke) = &current_stroke {
+                                // Draw current stroke in real-time
+                                if let Some(stroke) = wacom_handler.current_stroke() {
+                                    debug!("🎨 Drawing stroke with {} points", stroke.points.len());
+                                    let fb = ctx.get_framebuffer_ref();
+
                                     // Draw stroke in real-time
                                     stroke_renderer.draw_stroke(
-                                        &mut ctx.framebuffer,
+                                        fb,
                                         stroke,
                                         color::BLACK,
                                     );
+                                    debug!("✅ Stroke drawn to framebuffer");
 
                                     // Partial refresh for stroke area
                                     if let Some((x_min, y_min, x_max, y_max)) = stroke.bounding_box() {
-                                        ctx.partial_refresh(
-                                            &mxcfb_rect {
-                                                top: y_min.max(0) as u32,
-                                                left: x_min.max(0) as u32,
-                                                width: ((x_max - x_min).max(1) + 20) as u32,
-                                                height: ((y_max - y_min).max(1) + 20) as u32,
-                                            },
+                                        let region = mxcfb_rect {
+                                            top: y_min.max(0) as u32,
+                                            left: x_min.max(0) as u32,
+                                            width: ((x_max - x_min).max(1) + 20) as u32,
+                                            height: ((y_max - y_min).max(1) + 20) as u32,
+                                        };
+                                        debug!("🔄 Refreshing region: x={}-{}, y={}-{}",
+                                               x_min, x_max, y_min, y_max);
+                                        fb.partial_refresh(
+                                            &region,
                                             PartialRefreshMode::Async,
                                             waveform_mode::WAVEFORM_MODE_DU,
                                             display_temp::TEMP_USE_REMARKABLE_DRAW,
@@ -186,40 +174,46 @@ impl App {
                                             0,
                                             false,
                                         );
+                                        debug!("✅ Refresh triggered");
+                                    } else {
+                                        debug!("⚠️  No bounding box for stroke");
                                     }
                                 }
 
                                 if let Some(stroke) = completed_stroke {
-                                    debug!("Stroke completed with {} points", stroke.points.len());
+                                    info!("✨ Stroke completed with {} points", stroke.points.len());
 
                                     // Check for gestures
                                     match gesture_detector.detect(&stroke) {
                                         Gesture::Circle { center_x, center_y, .. } => {
                                             info!("Circle gesture detected at ({}, {})", center_x, center_y);
 
+                                            let fb = ctx.get_framebuffer_ref();
+
                                             // Show placeholder AI response
                                             text_renderer.draw_text(
-                                                &mut ctx.framebuffer,
+                                                fb,
                                                 "AI: This is a placeholder response.",
                                                 center_x.max(100) as usize,
                                                 (center_y + 50).max(200) as usize,
                                                 40.0,
                                             );
                                             text_renderer.draw_text(
-                                                &mut ctx.framebuffer,
+                                                fb,
                                                 "Circle gesture recognized!",
                                                 center_x.max(100) as usize,
                                                 (center_y + 100).max(250) as usize,
                                                 30.0,
                                             );
 
-                                            ctx.partial_refresh(
-                                                &mxcfb_rect {
-                                                    top: (center_y + 50).max(0) as u32,
-                                                    left: center_x.max(0) as u32,
-                                                    width: 800,
-                                                    height: 200,
-                                                },
+                                            let region = mxcfb_rect {
+                                                top: (center_y + 50).max(0) as u32,
+                                                left: center_x.max(0) as u32,
+                                                width: 800,
+                                                height: 200,
+                                            };
+                                            fb.partial_refresh(
+                                                &region,
                                                 PartialRefreshMode::Async,
                                                 waveform_mode::WAVEFORM_MODE_GC16,
                                                 display_temp::TEMP_USE_REMARKABLE_DRAW,
@@ -240,15 +234,101 @@ impl App {
                                     }
 
                                     all_strokes.push(stroke);
-                                    current_stroke = None;
                                 }
                             }
                         }
-                        libremarkable::input::wacom::WacomEvent::InstrumentChange { .. } => {
+                        libremarkable::input::WacomEvent::InstrumentChange { .. } => {
                             // Tool up event
                             if let Ok(Some(stroke)) = wacom_handler.handle_event(WacomEvent::ToolUp) {
+                                info!("✨ Stroke completed with {} points", stroke.points.len());
+
+                                // Check for gestures
+                                match gesture_detector.detect(&stroke) {
+                                    Gesture::Circle { center_x, center_y, .. } => {
+                                        info!("Circle gesture detected at ({}, {})", center_x, center_y);
+
+                                        let fb = ctx.get_framebuffer_ref();
+
+                                        // Trigger recognition on all accumulated strokes (excluding the circle)
+                                        if !all_strokes.is_empty() {
+                                            info!("Recognizing {} strokes", all_strokes.len());
+
+                                            match runtime.block_on(recognizer.recognize(&all_strokes)) {
+                                                Ok(result) => {
+                                                    info!("Recognized: '{}' (confidence: {:.2})", result.text, result.confidence);
+
+                                                    // Display recognized text
+                                                    let response_x = 100_usize;
+                                                    let response_y = (center_y / 15).max(300) as usize;
+
+                                                    text_renderer.draw_text(
+                                                        fb,
+                                                        &format!("You wrote: {}", result.text),
+                                                        response_x,
+                                                        response_y,
+                                                        45.0,
+                                                    );
+                                                    text_renderer.draw_text(
+                                                        fb,
+                                                        &format!("Confidence: {:.0}%", result.confidence * 100.0),
+                                                        response_x,
+                                                        response_y + 60,
+                                                        35.0,
+                                                    );
+
+                                                    // Clear strokes after recognition
+                                                    all_strokes.clear();
+                                                }
+                                                Err(e) => {
+                                                    warn!("Recognition failed: {}", e);
+                                                    text_renderer.draw_text(
+                                                        fb,
+                                                        "Recognition failed (network error?)",
+                                                        100,
+                                                        300,
+                                                        40.0,
+                                                    );
+                                                }
+                                            }
+                                        } else {
+                                            info!("Circle detected but no strokes to recognize");
+                                            text_renderer.draw_text(
+                                                fb,
+                                                "Draw some text, then circle to recognize",
+                                                100,
+                                                300,
+                                                35.0,
+                                            );
+                                        }
+
+                                        let region = mxcfb_rect {
+                                            top: 250,
+                                            left: 50,
+                                            width: 1300,
+                                            height: 300,
+                                        };
+                                        fb.partial_refresh(
+                                            &region,
+                                            PartialRefreshMode::Async,
+                                            waveform_mode::WAVEFORM_MODE_GC16,
+                                            display_temp::TEMP_USE_REMARKABLE_DRAW,
+                                            dither_mode::EPDC_FLAG_USE_DITHERING_PASSTHROUGH,
+                                            0,
+                                            false,
+                                        );
+                                    }
+                                    Gesture::Underline { .. } => {
+                                        info!("Underline gesture detected");
+                                    }
+                                    Gesture::Lasso { .. } => {
+                                        info!("Lasso gesture detected");
+                                    }
+                                    Gesture::None => {
+                                        debug!("Regular stroke (no gesture)");
+                                    }
+                                }
+
                                 all_strokes.push(stroke);
-                                current_stroke = None;
                             }
                         }
                         _ => {}
@@ -256,25 +336,23 @@ impl App {
                 }
                 InputEvent::MultitouchEvent { event } => {
                     match event {
-                        multitouch::MultitouchEvent::Press { finger } => {
-                            if finger.tracking_id == 0 {
-                                info!("Touch detected - checking for exit gesture");
-                            }
-                        }
-                        multitouch::MultitouchEvent::Release { .. } => {
-                            // Simple exit: any multitouch release exits
-                            info!("Touch release - exiting");
-                            std::process::exit(0);
+                        libremarkable::input::MultitouchEvent::Press { finger } => {
+                            debug!("Touch detected: finger {}", finger.tracking_id);
+                            // Touch events are ignored - use power button or swipe to exit
                         }
                         _ => {}
                     }
                 }
                 InputEvent::GPIO { event } => {
                     match event {
-                        gpio::GPIOEvent::Press { button } => {
+                        libremarkable::input::GPIOEvent::Press { button } => {
                             info!("Button press: {:?}", button);
-                            if button == gpio::PhysicalButton::POWER {
+                            if button == libremarkable::input::PhysicalButton::POWER {
                                 info!("Power button pressed - exiting");
+                                std::process::exit(0);
+                            }
+                            if button == libremarkable::input::PhysicalButton::MIDDLE {
+                                info!("Middle button pressed - exiting");
                                 std::process::exit(0);
                             }
                         }
