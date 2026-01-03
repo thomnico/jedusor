@@ -46,27 +46,21 @@ struct WritingGuide {
 }
 
 /// API response structure
+/// Format: ["SUCCESS", [["request_id", ["candidate1", "candidate2", ...], [], {...}]]]
 #[derive(Debug, Deserialize)]
-struct RecognitionResponse {
-    #[serde(default)]
-    result: Vec<ResponseResult>,
-}
+struct RecognitionResponse(
+    String,  // "SUCCESS" or error status
+    Vec<ResponseResult>,
+);
 
+/// Result tuple: [request_id, candidates, empty_array, metadata]
 #[derive(Debug, Deserialize)]
-struct ResponseResult {
-    #[serde(default)]
-    #[serde(rename = "1")]
-    candidates: Vec<Vec<Candidate>>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Candidate {
-    #[serde(rename = "0")]
-    text: String,
-    #[serde(rename = "1")]
-    #[serde(default)]
-    confidence: Option<f64>,
-}
+struct ResponseResult(
+    String,           // request_id
+    Vec<String>,      // candidate strings
+    Vec<serde_json::Value>,  // empty array
+    serde_json::Value,       // metadata object
+);
 
 impl GoogleRecognizer {
     /// Create a new Google Input Tools recognizer
@@ -78,7 +72,7 @@ impl GoogleRecognizer {
 
         Ok(Self {
             client,
-            api_url: "https://inputtools.google.com/request".to_string(),
+            api_url: "https://inputtools.google.com/request?ime=handwriting&app=mobilesearch&cs=1&oe=UTF-8".to_string(),
             language: "en".to_string(),
         })
     }
@@ -196,10 +190,10 @@ impl GoogleRecognizer {
             .await
             .context("Failed to read response body")?;
 
-        debug!("API response: {}", response_text);
+        debug!("API response (raw): {}", response_text);
 
         let parsed: RecognitionResponse = serde_json::from_str(&response_text)
-            .context("Failed to parse API response")?;
+            .with_context(|| format!("Failed to parse API response. Raw response: {}", response_text))?;
 
         let duration = start.elapsed();
         info!("Recognition completed in {:?}", duration);
@@ -209,7 +203,13 @@ impl GoogleRecognizer {
 
     /// Parse API response and extract best candidate
     fn parse_response(&self, response: RecognitionResponse) -> Result<RecognitionResult> {
-        if response.result.is_empty() {
+        // Check status
+        if response.0 != "SUCCESS" {
+            anyhow::bail!("API returned error status: {}", response.0);
+        }
+
+        // Check if we have results
+        if response.1.is_empty() {
             return Ok(RecognitionResult {
                 text: String::new(),
                 confidence: 0.0,
@@ -217,8 +217,10 @@ impl GoogleRecognizer {
             });
         }
 
-        let result = &response.result[0];
-        if result.candidates.is_empty() || result.candidates[0].is_empty() {
+        let result = &response.1[0];
+        let candidates = &result.1;  // Vec<String> of candidates
+
+        if candidates.is_empty() {
             return Ok(RecognitionResult {
                 text: String::new(),
                 confidence: 0.0,
@@ -227,19 +229,19 @@ impl GoogleRecognizer {
         }
 
         // Extract top candidate
-        let top_candidate = &result.candidates[0][0];
-        let text = top_candidate.text.clone();
-        let confidence = top_candidate.confidence.unwrap_or(1.0);
+        let text = candidates[0].clone();
+        let confidence = 1.0;  // Google doesn't provide confidence scores in this format
 
-        // Extract alternatives
-        let alternatives: Vec<String> = result.candidates[0]
+        // Extract alternatives (up to 4)
+        let alternatives: Vec<String> = candidates
             .iter()
             .skip(1)
-            .take(4) // Up to 4 alternatives
-            .map(|c| c.text.clone())
+            .take(4)
+            .cloned()
             .collect();
 
         info!("Recognized text: '{}' (confidence: {:.2})", text, confidence);
+        debug!("Alternatives: {:?}", alternatives);
 
         Ok(RecognitionResult {
             text,

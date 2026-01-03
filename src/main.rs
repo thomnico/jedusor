@@ -25,20 +25,17 @@ fn main() -> Result<()> {
     info!("Jedusor starting...");
     info!("Version: {}", env!("CARGO_PKG_VERSION"));
 
-    // Check for API key only when using LLM features (not needed for simulator)
-    #[cfg(not(feature = "simulator"))]
-    {
-        if std::env::var("ANTHROPIC_API_KEY").is_err() {
-            error!("ANTHROPIC_API_KEY environment variable not set");
-            error!("This is required for LLM integration on the device");
-            anyhow::bail!("Missing required environment variable: ANTHROPIC_API_KEY");
+    // Check for API key (optional - only needed for AI responses, not handwriting recognition)
+    if std::env::var("ANTHROPIC_API_KEY").is_err() {
+        #[cfg(not(feature = "simulator"))]
+        {
+            use log::warn;
+            warn!("ANTHROPIC_API_KEY environment variable not set");
+            warn!("Handwriting recognition will work, but AI responses will be disabled");
         }
-    }
-
-    #[cfg(feature = "simulator")]
-    {
-        if std::env::var("ANTHROPIC_API_KEY").is_err() {
-            info!("ANTHROPIC_API_KEY not set (optional for simulator testing)");
+        #[cfg(feature = "simulator")]
+        {
+            info!("ANTHROPIC_API_KEY not set (optional for testing)");
         }
     }
 
