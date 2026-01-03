@@ -273,6 +273,7 @@ To accelerate development and enable testing without constant device deployment,
 - ✅ Handwriting recognition API integration
 - ✅ LLM interaction and response display
 - ✅ Text layout and typography testing
+- ✅ Screenshot capture (press 'S' key to save PNG)
 - ❌ E-ink refresh mode behavior (device-only)
 - ❌ Pressure sensitivity (mouse lacks pressure data)
 - ❌ ARM performance characteristics

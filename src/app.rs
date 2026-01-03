@@ -310,11 +310,20 @@ impl App {
         window.draw_text("Jedusor - Journal Mode (Simulator)", 50, 50);
         window.draw_text("Click and drag to draw strokes", 50, 100);
         window.draw_text("Circle gesture triggers AI response", 50, 150);
-        window.draw_text("Press ESC to exit", 50, 200);
+        window.draw_text("Press S to save screenshot", 50, 200);
+        window.draw_text("Press ESC to exit", 50, 250);
 
         info!("Starting simulator event loop - ready for input!");
 
         while window.is_open() {
+            // Check for screenshot request
+            if window.screenshot_requested() {
+                match window.save_screenshot() {
+                    Ok(filename) => info!("Screenshot saved: {}", filename),
+                    Err(e) => debug!("Failed to save screenshot: {}", e),
+                }
+            }
+
             // Poll for events
             if let Some(event) = window.poll_event() {
                 // Clone event for drawing (since handler consumes it)

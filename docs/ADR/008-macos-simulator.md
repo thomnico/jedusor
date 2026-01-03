@@ -124,6 +124,21 @@ MouseEvent::Press(x, y) => WacomEvent::ToolDown {
 }
 ```
 
+### Screenshot Capture
+
+The simulator includes built-in screenshot functionality for debugging and documentation:
+
+- **Activation:** Press 'S' key
+- **Output:** PNG file with timestamp (`jedusor-screenshot-{timestamp}.png`)
+- **Format:** 1404x1872 RGB image matching display resolution
+- **Use cases:**
+  - Visual verification of rendering
+  - Documentation of gesture detection
+  - Bug reports with visual evidence
+  - Tutorial screenshots
+
+Implementation uses the `image` crate to convert the u32 framebuffer to RGB8 format and save as PNG.
+
 ### Testing Scope
 
 **Can Test:**
@@ -134,6 +149,7 @@ MouseEvent::Press(x, y) => WacomEvent::ToolDown {
 - ✅ Handwriting recognition API calls
 - ✅ LLM integration
 - ✅ Full interaction pipeline
+- ✅ Screenshot capture for debugging (press 'S' key)
 
 **Cannot Test:**
 - ❌ E-ink refresh modes (GC16, DU, A2)

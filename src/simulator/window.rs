@@ -7,6 +7,9 @@ use anyhow::Result;
 use log::{debug, info};
 use minifb::{Window, WindowOptions, Key, MouseMode, MouseButton};
 
+#[cfg(feature = "simulator")]
+use image::{RgbImage, Rgb};
+
 use crate::input::wacom::{WacomEvent, Tool, WACOM_MAX_X, WACOM_MAX_Y};
 use crate::stroke::{Point, Stroke};
 
@@ -63,6 +66,42 @@ impl SimulatorWindow {
     /// Check if window is still open
     pub fn is_open(&self) -> bool {
         self.window.is_open() && !self.window.is_key_down(Key::Escape)
+    }
+
+    /// Check if screenshot key was pressed
+    pub fn screenshot_requested(&self) -> bool {
+        self.window.is_key_pressed(Key::S, minifb::KeyRepeat::No)
+    }
+
+    /// Save screenshot to file
+    pub fn save_screenshot(&self) -> Result<String> {
+        // Generate filename with timestamp
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let filename = format!("jedusor-screenshot-{}.png", timestamp);
+
+        // Convert framebuffer (u32 RGB) to image RGB8
+        let mut img = RgbImage::new(DISPLAY_WIDTH as u32, DISPLAY_HEIGHT as u32);
+
+        for (idx, pixel) in self.buffer.iter().enumerate() {
+            let x = (idx % DISPLAY_WIDTH) as u32;
+            let y = (idx / DISPLAY_WIDTH) as u32;
+
+            // Extract RGB from u32 (0x00RRGGBB format)
+            let r = ((pixel >> 16) & 0xFF) as u8;
+            let g = ((pixel >> 8) & 0xFF) as u8;
+            let b = (pixel & 0xFF) as u8;
+
+            img.put_pixel(x, y, Rgb([r, g, b]));
+        }
+
+        // Save to file
+        img.save(&filename)?;
+        info!("Screenshot saved: {}", filename);
+
+        Ok(filename)
     }
 
     /// Update window and get next Wacom event
