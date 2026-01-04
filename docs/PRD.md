@@ -239,6 +239,28 @@ Three interaction modes:
 - Cross-reference queries
 - Knowledge base features
 
+### Phase 5: Note-Taking Mode
+- Split-screen layout: journal (top 1/4) + writing area (bottom 3/4)
+- Automatic text vs. drawing detection
+- Persistent journal of recognized text
+- Strike-through gesture for text editing/replacement
+- Inline text modification without leaving the page
+- Conversation history displayed in journal area
+- Real-time text recognition and display
+
+**Key Features:**
+- **Journal Area (Top 1/4)**: Displays recognized text chronologically
+- **Writing Area (Bottom 3/4)**: Active handwriting input zone
+- **Gesture-based Editing**: Strike through text to edit or replace
+- **Content Detection**: Distinguish between text and sketches/diagrams
+- **Persistent Context**: Journal maintains conversation history
+
+**Use Cases:**
+- Meeting notes with AI assistance
+- Brainstorming with inline editing
+- Personal diary with searchable text
+- Quick notes with gesture-based corrections
+
 ## Success Metrics
 
 | Metric | Target |

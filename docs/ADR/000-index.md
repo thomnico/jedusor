@@ -14,6 +14,8 @@ This directory contains the Architecture Decision Records (ADRs) for the Jedusor
 | [006](006-existing-projects-analysis.md) | Existing Projects Analysis | Informational | Gap analysis of reMarkableAI, armrest, whiteboard-hypercard, ScribbleGPT |
 | [007](007-pdf-integration.md) | PDF Integration | Accepted | **lopdf + mupdf** selected over Poppler, pdf.js, pure pdf-rs |
 | [008](008-macos-simulator.md) | macOS Development Simulator | Accepted | **GUI simulator with minifb** selected over terminal-based, web-based |
+| [008](008-journal-mode-mvp-implementation.md) | Journal Mode MVP Implementation | Implemented | Documents stroke rendering, gesture detection, recognition integration, deployment |
+| [009](009-note-taking-mode.md) | Note-Taking Mode | Proposed | **Split-screen layout** with journal (top 1/4) + writing area (bottom 3/4), gesture-based editing |
 
 ## Decision Summary
 
@@ -85,8 +87,8 @@ When adding new ADRs, use this template:
 
 ## Future ADRs (Planned)
 
-- ADR-009: Conversation persistence strategy
-- ADR-010: Configuration management
-- ADR-011: Error handling and offline behavior
-- ADR-012: Testing strategy
-- ADR-013: Multi-language support
+- ADR-010: Conversation persistence strategy
+- ADR-011: Configuration management
+- ADR-012: Error handling and offline behavior
+- ADR-013: Testing strategy
+- ADR-014: Multi-language support
