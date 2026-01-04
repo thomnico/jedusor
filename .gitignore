@@ -36,10 +36,10 @@ TEST-*.md
 DEPLOYMENT.md
 SIMULATOR.md
 
-# Local build/deploy scripts
+# Local build/deploy scripts (temporary/experimental)
 build-docker.sh
 deploy-to-device.sh
 test-on-device.sh
 
-# Draft files
-*.draft
+# Draft files (temporary experiments only - jedusor.draft is tracked)
+# *.draft intentionally commented to allow jedusor.draft

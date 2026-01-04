@@ -1,6 +1,26 @@
 # Jedusor Deployment Guide
 
-## Quick Deploy
+## Automated Deployment with Launcher (Recommended)
+
+The easiest way to deploy Jedusor with launcher integration from macOS:
+
+```bash
+# Set your device IP (default: 10.11.99.1 for USB)
+export REMARKABLE_IP=10.11.99.1
+
+# Build and deploy everything
+./deploy-launcher.sh
+```
+
+This script will:
+- Build the release binary for reMarkable
+- Deploy binary and scripts to the device
+- Install the .draft file for launcher integration
+- Set proper permissions
+
+After running this script, follow the on-screen instructions to install Toltec and Remux/Oxide if you haven't already.
+
+## Quick Deploy (Manual)
 
 ```bash
 # Build release binary

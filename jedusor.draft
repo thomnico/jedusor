@@ -1,0 +1,4 @@
+name=Jedusor
+desc=AI handwriting assistant for reMarkable
+call=/home/root/start-jedusor.sh
+term=;
