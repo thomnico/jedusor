@@ -244,6 +244,8 @@ Three interaction modes:
 - Automatic text vs. drawing detection
 - Persistent journal of recognized text
 - Strike-through gesture for text editing/replacement
+- Timer-based end-of-writing detection (1.5s idle timeout)
+- Endpoint analysis for complete segment detection
 - Inline text modification without leaving the page
 - Conversation history displayed in journal area
 - Real-time text recognition and display
@@ -251,6 +253,8 @@ Three interaction modes:
 **Key Features:**
 - **Journal Area (Top 1/4)**: Displays recognized text chronologically
 - **Writing Area (Bottom 3/4)**: Active handwriting input zone
+- **Auto-Recognition**: Triggers after 1.5s of inactivity (no circle gesture needed)
+- **Endpoint Detection**: Analyzes spatial and temporal coherence of strokes
 - **Gesture-based Editing**: Strike through text to edit or replace
 - **Content Detection**: Distinguish between text and sketches/diagrams
 - **Persistent Context**: Journal maintains conversation history

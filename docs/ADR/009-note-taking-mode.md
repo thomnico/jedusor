@@ -183,7 +183,102 @@ impl EditGestureDetector {
 }
 ```
 
-**4. Layout Manager** (`src/layout/`)
+**4. End-of-Writing Detector** (`src/input/writing_detector.rs`)
+
+Automatically detects when the user has finished writing to trigger recognition without explicit gestures.
+
+```rust
+pub struct WritingDetector {
+    /// Time since last stroke to consider writing finished
+    idle_timeout: Duration,
+    /// Timestamp of last stroke
+    last_stroke_time: Option<Instant>,
+    /// Timer handle for timeout
+    timer: Option<Timer>,
+}
+
+impl WritingDetector {
+    pub fn new(idle_timeout: Duration) -> Self {
+        Self {
+            idle_timeout,
+            last_stroke_time: None,
+            timer: None,
+        }
+    }
+
+    /// Called when a new stroke is added
+    pub fn on_stroke_added(&mut self) {
+        self.last_stroke_time = Some(Instant::now());
+        self.reset_timer();
+    }
+
+    /// Check if writing has ended (timeout exceeded)
+    pub fn has_writing_ended(&self) -> bool {
+        if let Some(last_time) = self.last_stroke_time {
+            Instant::now().duration_since(last_time) >= self.idle_timeout
+        } else {
+            false
+        }
+    }
+
+    /// Reset the idle timer
+    fn reset_timer(&mut self) {
+        // Cancel existing timer
+        // Start new timer for idle_timeout duration
+    }
+}
+
+/// Analyzes stroke endpoints to determine writing completion
+pub struct EndpointDetector {
+    /// Minimum distance between start and end to consider complete
+    min_closure_distance: f32,
+}
+
+impl EndpointDetector {
+    /// Detect if a stroke sequence represents a complete thought/word
+    pub fn is_complete_segment(&self, strokes: &[Stroke]) -> bool {
+        if strokes.is_empty() {
+            return false;
+        }
+
+        // Check if strokes form a cohesive group
+        let spatial_coherence = self.analyze_spatial_coherence(strokes);
+        let temporal_coherence = self.analyze_temporal_coherence(strokes);
+
+        spatial_coherence && temporal_coherence
+    }
+
+    /// Check if strokes are spatially close (same word/phrase)
+    fn analyze_spatial_coherence(&self, strokes: &[Stroke]) -> bool {
+        // Calculate bounding box of all strokes
+        let bbox = calculate_bounding_box(strokes);
+
+        // Check if strokes are within reasonable horizontal span
+        // Typical word width: 200-800px
+        let width = bbox.width();
+        width > 50.0 && width < 1000.0
+    }
+
+    /// Check if strokes have reasonable timing (not too spread out)
+    fn analyze_temporal_coherence(&self, strokes: &[Stroke]) -> bool {
+        if strokes.len() < 2 {
+            return true;
+        }
+
+        // Check gaps between consecutive strokes
+        for window in strokes.windows(2) {
+            let gap = window[1].start_time - window[0].end_time;
+            // Gap > 2 seconds suggests separate writing segments
+            if gap > Duration::from_secs(2) {
+                return false;
+            }
+        }
+        true
+    }
+}
+```
+
+**5. Layout Manager** (`src/layout/`)
 ```rust
 pub struct SplitLayout {
     journal_area: Rect,    // Top 1/4
@@ -207,10 +302,26 @@ impl SplitLayout {
 
 ## Event Flow
 
+### Normal Writing Flow (Timer-Based)
+
 ```
 User writes in writing area
     ↓
 Stroke completed (pen lift)
+    ↓
+WritingDetector.on_stroke_added()
+    ↓
+Reset idle timer (1.5 seconds)
+    ↓
+User continues writing... (timer resets with each stroke)
+    ↓
+User stops writing (no new strokes)
+    ↓
+Idle timeout reached (1.5 seconds since last stroke)
+    ↓
+EndpointDetector.is_complete_segment()
+    ↓
+[If complete] Trigger recognition
     ↓
 Content Classifier: Text or Drawing?
     ↓
@@ -223,14 +334,18 @@ Content Classifier: Text or Drawing?
 │   writing   │   area           │
 │   area      │                  │
 └─────────────┴──────────────────┘
-    ↓
+```
+
+### Edit Flow (Strike-Through)
+
+```
 User strikes through journal text
     ↓
 Edit Gesture Detected
     ↓
 Show edit overlay
     ↓
-Capture replacement text
+Capture replacement text (with timer detection)
     ↓
 Update journal entry
     ↓
@@ -335,6 +450,61 @@ Circle gesture or timeout triggers replacement
     ↓
 Update journal, clear overlay
 ```
+
+### 5. End-of-Writing Detection
+
+**Decision**: Timer-based detection with endpoint analysis
+
+**Rationale**:
+- Eliminates need for explicit gestures (circle) for every text entry
+- More natural note-taking flow
+- Balances responsiveness with avoiding premature recognition
+
+**Parameters**:
+```rust
+const IDLE_TIMEOUT: Duration = Duration::from_millis(1500);  // 1.5 seconds
+const MAX_STROKE_GAP: Duration = Duration::from_secs(2);     // 2 seconds
+const MIN_SPATIAL_WIDTH: f32 = 50.0;    // Minimum stroke width to recognize
+const MAX_SPATIAL_WIDTH: f32 = 1000.0;  // Maximum word width
+```
+
+**Algorithm**:
+1. **Timer Reset**: Each stroke resets the idle timer
+2. **Timeout Trigger**: After 1.5s of inactivity, check for completion
+3. **Endpoint Analysis**:
+   - Spatial coherence: Are strokes close together? (same word/phrase)
+   - Temporal coherence: Are stroke gaps reasonable? (<2s between strokes)
+4. **Recognition Trigger**: If complete segment detected, recognize and add to journal
+
+**Trade-offs**:
+
+| Aspect | Short Timeout (0.5s) | Medium Timeout (1.5s) | Long Timeout (3.0s) |
+|--------|---------------------|----------------------|-------------------|
+| Responsiveness | Fast (500ms) | Balanced (1500ms) | Slow (3000ms) |
+| False triggers | High | Medium | Low |
+| User experience | Jarring | Natural | Sluggish |
+| Battery impact | Higher (more API calls) | Moderate | Lower |
+
+**Selected**: 1.5 seconds (medium timeout) for balanced UX
+
+**Alternative Approaches Considered**:
+
+1. **Gesture-only** (Circle to trigger)
+   - Pro: Explicit control, no false triggers
+   - Con: Tedious for every entry, breaks flow
+
+2. **Fixed delay per stroke** (recognize after every 3 strokes)
+   - Pro: Predictable behavior
+   - Con: Breaks multi-stroke words, arbitrary
+
+3. **Machine learning-based** (predict completion)
+   - Pro: Adaptive to user patterns
+   - Con: Complexity, training data required, latency
+
+**Fallback Mechanisms**:
+- User can still trigger recognition manually with circle gesture
+- Configurable timeout in settings (0.5s - 3.0s range)
+- Disable auto-recognition mode for drawing-heavy sessions
 
 ## Performance Considerations
 
