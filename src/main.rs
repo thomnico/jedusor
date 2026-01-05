@@ -11,6 +11,7 @@ mod recognition;
 mod context;
 mod llm;
 mod render;
+mod platform;
 
 #[cfg(feature = "simulator")]
 mod simulator;
