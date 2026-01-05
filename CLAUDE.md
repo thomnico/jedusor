@@ -72,6 +72,47 @@ cargo build --no-default-features --features simulator
 cargo test --no-default-features --features simulator
 ```
 
+## ⚠️ CRITICAL: Platform Parity Rule
+
+**The macOS simulator and reMarkable device version MUST ALWAYS be kept in sync.**
+
+They are the **same application** with different I/O backends, not separate implementations.
+
+**Non-Negotiable Requirements:**
+
+1. **Feature Parity**: Every feature must work on both platforms
+   - If it works on device but not simulator → Fix simulator immediately
+   - If it works on simulator but not device → Fix device immediately
+   - No "device-only" or "simulator-only" features (except I/O layer)
+
+2. **Shared Codebase**: Maximum code sharing
+   - Business logic: 100% shared
+   - Gesture detection: 100% shared
+   - Recognition: 100% shared
+   - Rendering logic: 100% shared
+   - Only I/O layer differs (libremarkable vs minifb)
+
+3. **Development Workflow**:
+   ```
+   1. Implement feature with shared abstractions (traits)
+   2. Test thoroughly on macOS simulator
+   3. Deploy to device and verify identical behavior
+   4. If behavior differs, update both to match
+   5. Commit only when both platforms work identically
+   ```
+
+4. **Why This Matters**:
+   - Simulator is primary development environment (10x faster iteration)
+   - Device deployment is slow (cross-compile + SSH = 30+ seconds)
+   - Contributors without devices depend on simulator accuracy
+   - Platform drift makes simulator useless for validation
+
+**When implementing new features:**
+- Use `#[cfg(feature = "device")]` and `#[cfg(feature = "simulator")]` ONLY for I/O
+- Share all logic via traits: `InputDevice`, `DisplayDevice`, etc.
+- Test on simulator first, then verify on device
+- If you break parity, you break the development workflow
+
 ### reMarkable Device
 
 ```bash

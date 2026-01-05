@@ -320,6 +320,30 @@ trait InputDevice { ... }
 trait DisplayDevice { ... }
 ```
 
+**⚠️ CRITICAL: Platform Parity Requirement**
+
+The macOS simulator and reMarkable device version **MUST ALWAYS be kept in sync**. They are the **same application** with different platform backends, not separate implementations.
+
+**Requirements:**
+- ✅ **Feature Parity**: Every feature implemented on device must work on simulator
+- ✅ **Shared Codebase**: Maximum code sharing via traits and feature flags
+- ✅ **Unified Testing**: Features validated on simulator before device deployment
+- ✅ **Consistent Behavior**: Logic, gestures, recognition flow identical on both
+- ❌ **No Drift**: Platform-specific implementations only for I/O layer
+- ❌ **No Duplication**: Avoid separate codepaths for same functionality
+
+**Development Workflow:**
+1. Implement feature with shared abstractions (traits)
+2. Test thoroughly on macOS simulator
+3. Deploy to device and verify behavior
+4. If device-specific adjustments needed, update simulator to match
+
+**Why This Matters:**
+- Simulator is primary development environment (faster iteration)
+- If simulator diverges, it becomes useless for validation
+- Device deployment is expensive (cross-compile + SSH)
+- Contributors without devices depend on simulator accuracy
+
 **Usage:**
 ```bash
 # Run simulator on macOS

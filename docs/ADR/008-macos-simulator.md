@@ -187,6 +187,55 @@ Implementation uses the `image` crate to convert the u32 framebuffer to RGB8 for
 - Add integration tests that run on both simulator and device
 - Keep simulator code minimal (< 300 lines)
 
+### ⚠️ CRITICAL: Platform Parity Requirement
+
+**The macOS simulator and reMarkable device version MUST ALWAYS be kept in sync.**
+
+This is not negotiable. The simulator and device are the **same application** with different I/O backends, not separate implementations.
+
+**Mandatory Requirements:**
+
+1. **Feature Parity**: Every feature on device MUST work on simulator
+   - If a feature works on device but not simulator → FIX SIMULATOR
+   - If a feature works on simulator but not device → FIX DEVICE
+   - No "device-only" or "simulator-only" features allowed (except I/O layer)
+
+2. **Shared Codebase**: Maximum code sharing via traits and abstractions
+   - Business logic: 100% shared
+   - Gesture detection: 100% shared
+   - Recognition: 100% shared
+   - Rendering logic: 100% shared
+   - Only I/O layer differs (libremarkable vs minifb)
+
+3. **Unified Testing**: Simulator is first-class testing platform
+   - Features MUST be tested on simulator before device deployment
+   - Simulator test failure = development blocker
+   - Device-only testing is emergency fallback only
+
+4. **No Drift Tolerance**: Platform divergence breaks development workflow
+   - If simulator diverges, it becomes useless
+   - Contributors without devices depend on simulator accuracy
+   - Device deployment is expensive (cross-compile + SSH takes minutes)
+
+**Development Workflow Enforced:**
+```
+1. Implement feature with shared abstractions (traits)
+2. Test on macOS simulator until working
+3. Deploy to device and verify identical behavior
+4. If device behavior differs:
+   - Update simulator to match device
+   - Update shared abstraction to handle difference
+   - Re-test on both platforms
+5. Commit only when both platforms work identically
+```
+
+**Why This Is Critical:**
+- Simulator is primary development environment (10x faster iteration)
+- Without parity, simulator becomes "toy" instead of "tool"
+- Cross-compilation + device deployment takes 30+ seconds per test
+- Contributors without devices must trust simulator
+- Platform-specific code is technical debt that compounds over time
+
 ## Decision Criteria Matrix
 
 | Criteria | Weight | Terminal | minifb GUI | Web Simulator |
