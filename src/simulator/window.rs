@@ -206,25 +206,69 @@ impl SimulatorWindow {
 
     /// Draw a stroke to the framebuffer
     pub fn draw_stroke(&mut self, stroke: &Stroke, color: u32) {
-        for point in &stroke.points {
-            self.draw_point(point, color);
+        if stroke.points.len() < 2 {
+            return;
+        }
+
+        // Draw lines connecting consecutive points (matching device behavior)
+        for window in stroke.points.windows(2) {
+            let p1 = &window[0];
+            let p2 = &window[1];
+
+            let x1 = self.wacom_x_to_display(p1.x);
+            let y1 = self.wacom_y_to_display(p1.y);
+            let x2 = self.wacom_x_to_display(p2.x);
+            let y2 = self.wacom_y_to_display(p2.y);
+
+            // Draw line with width=3 (matching device)
+            self.draw_line(x1 as i32, y1 as i32, x2 as i32, y2 as i32, 3, color);
         }
     }
 
-    /// Draw a single point (small circle for visibility)
-    fn draw_point(&mut self, point: &Point, color: u32) {
-        let x = self.wacom_x_to_display(point.x);
-        let y = self.wacom_y_to_display(point.y);
+    /// Draw a line using Bresenham's algorithm with width
+    fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, width: i32, color: u32) {
+        let dx = (x1 - x0).abs();
+        let dy = (y1 - y0).abs();
+        let sx = if x0 < x1 { 1 } else { -1 };
+        let sy = if y0 < y1 { 1 } else { -1 };
+        let mut err = dx - dy;
+        let mut x = x0;
+        let mut y = y0;
 
-        // Draw a small 3x3 circle for visibility
-        for dy in -1..=1 {
-            for dx in -1..=1 {
-                let px = (x as i32 + dx) as usize;
-                let py = (y as i32 + dy) as usize;
+        loop {
+            // Draw thick point at (x, y)
+            self.draw_thick_point(x, y, width, color);
 
-                if px < DISPLAY_WIDTH && py < DISPLAY_HEIGHT {
-                    let idx = py * DISPLAY_WIDTH + px;
-                    self.buffer[idx] = color;
+            if x == x1 && y == y1 {
+                break;
+            }
+
+            let e2 = 2 * err;
+            if e2 > -dy {
+                err -= dy;
+                x += sx;
+            }
+            if e2 < dx {
+                err += dx;
+                y += sy;
+            }
+        }
+    }
+
+    /// Draw a thick point (circle with given radius)
+    fn draw_thick_point(&mut self, x: i32, y: i32, width: i32, color: u32) {
+        let radius = width / 2;
+        for dy in -radius..=radius {
+            for dx in -radius..=radius {
+                // Simple circle approximation
+                if dx * dx + dy * dy <= radius * radius {
+                    let px = x + dx;
+                    let py = y + dy;
+
+                    if px >= 0 && px < DISPLAY_WIDTH as i32 && py >= 0 && py < DISPLAY_HEIGHT as i32 {
+                        let idx = (py as usize) * DISPLAY_WIDTH + (px as usize);
+                        self.buffer[idx] = color;
+                    }
                 }
             }
         }
