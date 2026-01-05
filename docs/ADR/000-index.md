@@ -1,94 +1,91 @@
-# Architecture Decision Records
+<?xml version="1.0" encoding="UTF-8"?>
+<architecture-decision-records>
+  <description>
+    This directory contains the Architecture Decision Records (ADRs) for the Jedusor project.
+  </description>
 
-This directory contains the Architecture Decision Records (ADRs) for the Jedusor project.
+  <index>
+    <adr number="001" title="Programming Language" status="Accepted" file="001-programming-language.xml">
+      <summary>Rust selected over C++, Python, Go, JavaScript</summary>
+    </adr>
+    <adr number="002" title="Handwriting Recognition" status="Accepted" file="002-handwriting-recognition.xml">
+      <summary>Google Input Tools API selected over Tesseract, on-device ML, Mathpix</summary>
+    </adr>
+    <adr number="003" title="LLM Provider" status="Accepted" file="003-llm-provider.xml">
+      <summary>Claude (Anthropic) selected over GPT-4, local LLM, Gemini</summary>
+    </adr>
+    <adr number="004" title="Device Framework" status="Accepted" file="004-device-framework.xml">
+      <summary>libremarkable selected over direct evdev, Qt Quick, Toltec</summary>
+    </adr>
+    <adr number="005" title="Response Animation" status="Accepted" file="005-response-animation.xml">
+      <summary>Character/word streaming selected over fade-in, all-at-once</summary>
+    </adr>
+    <adr number="006" title="Existing Projects Analysis" status="Informational" file="006-existing-projects-analysis.xml">
+      <summary>Gap analysis of reMarkableAI, armrest, whiteboard-hypercard, ScribbleGPT</summary>
+    </adr>
+    <adr number="007" title="PDF Integration" status="Accepted" file="007-pdf-integration.xml">
+      <summary>lopdf + mupdf selected over Poppler, pdf.js, pure pdf-rs</summary>
+    </adr>
+    <adr number="008a" title="macOS Development Simulator" status="Accepted" file="008-macos-simulator.xml">
+      <summary>GUI simulator with minifb selected over terminal-based, web-based</summary>
+    </adr>
+    <adr number="008b" title="Journal Mode MVP Implementation" status="Implemented" file="008-journal-mode-mvp-implementation.xml">
+      <summary>Documents stroke rendering, gesture detection, recognition integration, deployment</summary>
+    </adr>
+    <adr number="009" title="Note-Taking Mode" status="Proposed" file="009-note-taking-mode.xml">
+      <summary>Split-screen layout with journal (top 1/4) + writing area (bottom 3/4), gesture-based editing</summary>
+    </adr>
+    <adr number="010" title="Platform Abstraction Architecture" status="Accepted" file="010-platform-abstraction.xml">
+      <summary>Trait-based abstraction eliminates device/simulator code duplication, achieves 95% code sharing</summary>
+    </adr>
+  </index>
 
-## Index
+  <selected-stack>
+    <component name="Language">Rust</component>
+    <component name="Framework">libremarkable 0.7.x</component>
+    <component name="Simulator">minifb (macOS/desktop)</component>
+    <component name="Recognition">Google Input Tools API</component>
+    <component name="LLM">Claude (Anthropic API)</component>
+    <component name="Animation">Streaming + Partial GC16</component>
+    <component name="PDF">lopdf + mupdf</component>
+    <component name="Platform Abstraction">Display, InputSource, Platform traits</component>
+  </selected-stack>
 
-| ADR | Title | Status | Summary |
-|-----|-------|--------|---------|
-| [001](001-programming-language.md) | Programming Language | Accepted | **Rust** selected over C++, Python, Go, JavaScript |
-| [002](002-handwriting-recognition.md) | Handwriting Recognition | Accepted | **Google Input Tools API** selected over Tesseract, on-device ML, Mathpix |
-| [003](003-llm-provider.md) | LLM Provider | Accepted | **Claude (Anthropic)** selected over GPT-4, local LLM, Gemini |
-| [004](004-device-framework.md) | Device Framework | Accepted | **libremarkable** selected over direct evdev, Qt Quick, Toltec |
-| [005](005-response-animation.md) | Response Animation | Accepted | **Character/word streaming** selected over fade-in, all-at-once |
-| [006](006-existing-projects-analysis.md) | Existing Projects Analysis | Informational | Gap analysis of reMarkableAI, armrest, whiteboard-hypercard, ScribbleGPT |
-| [007](007-pdf-integration.md) | PDF Integration | Accepted | **lopdf + mupdf** selected over Poppler, pdf.js, pure pdf-rs |
-| [008](008-macos-simulator.md) | macOS Development Simulator | Accepted | **GUI simulator with minifb** selected over terminal-based, web-based |
-| [008](008-journal-mode-mvp-implementation.md) | Journal Mode MVP Implementation | Implemented | Documents stroke rendering, gesture detection, recognition integration, deployment |
-| [009](009-note-taking-mode.md) | Note-Taking Mode | Proposed | **Split-screen layout** with journal (top 1/4) + writing area (bottom 3/4), gesture-based editing |
+  <rejected-alternatives>
+    <rejection category="Language" option="C++" reason="No high-level framework, more boilerplate"/>
+    <rejection category="Language" option="Python" reason="No native device I/O, GC pauses"/>
+    <rejection category="Language" option="Go" reason="No framebuffer framework, GC pauses"/>
+    <rejection category="Language" option="JavaScript" reason="No native e-ink control, browser overhead"/>
+    <rejection category="Recognition" option="Tesseract" reason="Poor handwriting accuracy (OCR focused)"/>
+    <rejection category="Recognition" option="On-device ML" reason="Development risk, accuracy concerns"/>
+    <rejection category="Recognition" option="Mathpix" reason="Cost, STEM specialization"/>
+    <rejection category="LLM" option="GPT-4" reason="Higher cost, less persona consistency"/>
+    <rejection category="LLM" option="Local LLM" reason="Hardware limitations (1GB RAM)"/>
+    <rejection category="LLM" option="Gemini" reason="Weaker creative writing"/>
+    <rejection category="Framework" option="Qt Quick" reason="No partial refresh control, heavyweight"/>
+    <rejection category="Framework" option="Direct evdev" reason="Reinventing solved problems"/>
+    <rejection category="Animation" option="Fade-in" reason="E-ink doesn't support opacity"/>
+    <rejection category="Animation" option="All-at-once" reason="Loses magical effect"/>
+    <rejection category="PDF" option="Poppler" reason="Cross-compilation complexity, binary size"/>
+    <rejection category="PDF" option="pdf.js" reason="Requires WebView, memory hungry"/>
+    <rejection category="PDF" option="Pure pdf-rs" reason="Insufficient rendering quality"/>
+    <rejection category="Simulator" option="Terminal-based" reason="No visual feedback, poor UX"/>
+    <rejection category="Simulator" option="Web-based" reason="Over-engineered, separate codebase"/>
+  </rejected-alternatives>
 
-## Decision Summary
+  <adr-template>
+    <section name="Status">[Proposed | Accepted | Deprecated | Superseded by ADR-XXX]</section>
+    <section name="Context">[Why is this decision needed?]</section>
+    <section name="Decision">[What is the decision and brief rationale?]</section>
+    <section name="Options Considered">[List all options with pros/cons]</section>
+    <section name="Consequences">[What are the positive and negative results?]</section>
+    <section name="Decision Criteria Matrix">[Weighted scoring if applicable]</section>
+  </adr-template>
 
-### Selected Stack
-
-```
-┌─────────────────────────────────────────┐
-│            Jedusor Stack                │
-├─────────────────────────────────────────┤
-│  Language:     Rust                     │
-│  Framework:    libremarkable 0.7.x      │
-│  Simulator:    minifb (macOS/desktop)   │
-│  Recognition:  Google Input Tools API   │
-│  LLM:          Claude (Anthropic API)   │
-│  Animation:    Streaming + Partial GC16 │
-│  PDF:          lopdf + mupdf            │
-└─────────────────────────────────────────┘
-```
-
-### Rejected Alternatives Summary
-
-| Category | Rejected | Primary Reason |
-|----------|----------|----------------|
-| Language | C++ | No high-level framework, more boilerplate |
-| Language | Python | No native device I/O, GC pauses |
-| Language | Go | No framebuffer framework, GC pauses |
-| Language | JavaScript | No native e-ink control, browser overhead |
-| Recognition | Tesseract | Poor handwriting accuracy (OCR focused) |
-| Recognition | On-device ML | Development risk, accuracy concerns |
-| Recognition | Mathpix | Cost, STEM specialization |
-| LLM | GPT-4 | Higher cost, less persona consistency |
-| LLM | Local LLM | Hardware limitations (1GB RAM) |
-| LLM | Gemini | Weaker creative writing |
-| Framework | Qt Quick | No partial refresh control, heavyweight |
-| Framework | Direct evdev | Reinventing solved problems |
-| Animation | Fade-in | E-ink doesn't support opacity |
-| Animation | All-at-once | Loses magical effect |
-| PDF | Poppler | Cross-compilation complexity, binary size |
-| PDF | pdf.js | Requires WebView, memory hungry |
-| PDF | Pure pdf-rs | Insufficient rendering quality |
-| Simulator | Terminal-based | No visual feedback, poor UX |
-| Simulator | Web-based | Over-engineered, separate codebase |
-
-## ADR Template
-
-When adding new ADRs, use this template:
-
-```markdown
-# ADR-NNN: Title
-
-## Status
-[Proposed | Accepted | Deprecated | Superseded by ADR-XXX]
-
-## Context
-[Why is this decision needed?]
-
-## Decision
-[What is the decision and brief rationale?]
-
-## Options Considered
-[List all options with pros/cons]
-
-## Consequences
-[What are the positive and negative results?]
-
-## Decision Criteria Matrix
-[Weighted scoring if applicable]
-```
-
-## Future ADRs (Planned)
-
-- ADR-010: Conversation persistence strategy
-- ADR-011: Configuration management
-- ADR-012: Error handling and offline behavior
-- ADR-013: Testing strategy
-- ADR-014: Multi-language support
+  <future-adrs>
+    <planned-adr>ADR-011: Configuration management</planned-adr>
+    <planned-adr>ADR-012: Error handling and offline behavior</planned-adr>
+    <planned-adr>ADR-013: Testing strategy</planned-adr>
+    <planned-adr>ADR-014: Multi-language support</planned-adr>
+  </future-adrs>
+</architecture-decision-records>

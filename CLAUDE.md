@@ -1,20 +1,24 @@
-# CLAUDE.md
+<?xml version="1.0" encoding="UTF-8"?>
+<claude-documentation>
+  <meta>
+    <purpose>Guidance for Claude Code (claude.ai/code) when working with this repository</purpose>
+  </meta>
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+  <project-overview>
+    <description>
+      <strong>Jedusor</strong> is a stylus-first AI interaction layer for reMarkable tablets.
+      Write questions, annotations, or commands by hand—the AI responds directly on the e-ink display.
+    </description>
 
-## Project Overview
+    <interaction-modes>
+      <mode name="journal">Blank page conversation (magical diary experience)</mode>
+      <mode name="document">AI assistant overlaid on PDFs, responds to margin annotations</mode>
+      <mode name="research" status="future">Multi-document context, cross-reference questions</mode>
+    </interaction-modes>
+  </project-overview>
 
-**Jedusor** is a stylus-first AI interaction layer for reMarkable tablets. Write questions, annotations, or commands by hand—the AI responds directly on the e-ink display.
-
-Three interaction modes:
-
-1. **Journal Mode** - Blank page conversation (magical diary experience)
-2. **Document Mode** - AI assistant overlaid on PDFs, responds to margin annotations
-3. **Research Mode** - Multi-document context, cross-reference questions (future)
-
-## Architecture
-
-```
+  <architecture>
+    <diagram type="ascii">
 ┌───────────────────────────────────────────────────────────────────┐
 │                       reMarkable Tablet                           │
 ├───────────────────────────────────────────────────────────────────┤
@@ -36,141 +40,148 @@ Three interaction modes:
 │  └─────────────┘    └──────────────┘    └───────────────┘        │
 │                                                                   │
 └───────────────────────────────────────────────────────────────────┘
-```
+    </diagram>
 
-### Core Components
+    <core-components>
+      <component name="Input Handler" path="src/input/">
+        Wacom stylus strokes + gesture detection (circle, underline, lasso)
+      </component>
+      <component name="Stroke Engine" path="src/stroke/">
+        Stroke collection, gesture recognition
+      </component>
+      <component name="Recognition Service" path="src/recognition/">
+        Handwriting to text (Google Input Tools API)
+      </component>
+      <component name="PDF Module" path="src/pdf/">
+        Document loading, rendering, text extraction (lopdf + mupdf)
+      </component>
+      <component name="Context Manager" path="src/context/">
+        Combines annotations + document content for LLM
+      </component>
+      <component name="LLM Client" path="src/llm/">
+        Claude API with persona management
+      </component>
+      <component name="Renderer" path="src/render/">
+        E-ink optimized display with streaming animation
+      </component>
+      <component name="App Context" path="src/app/">
+        Mode switching, state, event loop
+      </component>
+      <component name="Platform Abstraction" path="src/platform/">
+        Trait-based I/O abstraction for device/simulator parity
+      </component>
+    </core-components>
+  </architecture>
 
-1. **Input Handler** (`src/input/`) - Wacom stylus strokes + gesture detection (circle, underline, lasso)
-2. **Stroke Engine** (`src/stroke/`) - Stroke collection, gesture recognition
-3. **Recognition Service** (`src/recognition/`) - Handwriting to text (Google Input Tools API)
-4. **PDF Module** (`src/pdf/`) - Document loading, rendering, text extraction (lopdf + mupdf)
-5. **Context Manager** (`src/context/`) - Combines annotations + document content for LLM
-6. **LLM Client** (`src/llm/`) - Claude API with persona management
-7. **Renderer** (`src/render/`) - E-ink optimized display with streaming animation
-8. **App Context** (`src/app.rs`) - Mode switching, state, event loop
+  <technology-stack>
+    <language msrv="1.80+">Rust</language>
+    <framework version="0.7.x" url="https://github.com/canselcik/libremarkable">libremarkable</framework>
+    <pdf-handling>
+      <library>lopdf (text extraction)</library>
+      <library>mupdf (rendering)</library>
+    </pdf-handling>
+    <target>armv7-unknown-linux-gnueabihf (reMarkable 1/2)</target>
+    <build-tool>cross (recommended) or official reMarkable toolchain</build-tool>
+  </technology-stack>
 
-## Technology Stack
+  <build-commands>
+    <simulator platform="macOS/Desktop">
+      <command purpose="run-simulator">cargo run --no-default-features --features simulator</command>
+      <command purpose="build-simulator">cargo build --no-default-features --features simulator</command>
+      <command purpose="test-simulator">cargo test --no-default-features --features simulator</command>
+    </simulator>
 
-- **Language**: Rust (MSRV 1.80+)
-- **Framework**: [libremarkable](https://github.com/canselcik/libremarkable) 0.7.x
-- **PDF**: lopdf (text extraction) + mupdf (rendering)
-- **Target**: `armv7-unknown-linux-gnueabihf` (reMarkable 1/2)
-- **Build Tool**: `cross` (recommended) or official reMarkable toolchain
+    <device platform="reMarkable">
+      <setup>
+        <command purpose="install-cross">cargo install cross</command>
+      </setup>
+      <build>
+        <command purpose="debug" target="armv7-unknown-linux-gnueabihf">cross build --target armv7-unknown-linux-gnueabihf</command>
+        <command purpose="release" target="armv7-unknown-linux-gnueabihf">cross build --release --target armv7-unknown-linux-gnueabihf</command>
+        <command purpose="static-link" target="armv7-unknown-linux-musleabihf">cross build --release --target armv7-unknown-linux-musleabihf</command>
+      </build>
+      <test>
+        <command purpose="all-tests">cargo test --no-default-features</command>
+        <command purpose="single-test">cargo test test_name --no-default-features</command>
+      </test>
+      <lint>
+        <command purpose="check">cargo check</command>
+        <command purpose="lint">cargo clippy --target armv7-unknown-linux-gnueabihf</command>
+      </lint>
+    </device>
+  </build-commands>
 
-## Build Commands
+  <platform-parity-rule criticality="CRITICAL">
+    <principle>
+      The macOS simulator and reMarkable device version MUST ALWAYS be kept in sync.
+      They are the SAME APPLICATION with different I/O backends, not separate implementations.
+    </principle>
 
-### macOS/Desktop Simulator
+    <requirements>
+      <requirement name="feature-parity" priority="non-negotiable">
+        Every feature must work on both platforms:
+        - If it works on device but not simulator → Fix simulator immediately
+        - If it works on simulator but not device → Fix device immediately
+        - No "device-only" or "simulator-only" features (except I/O layer)
+      </requirement>
 
-```bash
-# Run simulator on macOS (development)
-cargo run --no-default-features --features simulator
+      <requirement name="shared-codebase" priority="non-negotiable">
+        Maximum code sharing (~95% achieved):
+        - Business logic: 100% shared (in EventHandler)
+        - Gesture detection: 100% shared (GestureDetector)
+        - Recognition: 100% shared (GoogleRecognizer)
+        - Rendering logic: 100% shared (via Display trait)
+        - Only I/O layer differs (libremarkable vs minifb)
+      </requirement>
 
-# Build simulator
-cargo build --no-default-features --features simulator
+      <requirement name="development-workflow" priority="mandatory">
+        <step>1. Implement feature with shared abstractions (traits)</step>
+        <step>2. Test thoroughly on macOS simulator</step>
+        <step>3. Deploy to device and verify identical behavior</step>
+        <step>4. If behavior differs, update both to match</step>
+        <step>5. Commit only when both platforms work identically</step>
+      </requirement>
 
-# Run tests with simulator feature
-cargo test --no-default-features --features simulator
-```
+      <requirement name="rationale">
+        Why this matters:
+        - Simulator is primary development environment (10x faster iteration)
+        - Device deployment is slow (cross-compile + SSH = 30+ seconds)
+        - Contributors without devices depend on simulator accuracy
+        - Platform drift makes simulator useless for validation
+      </requirement>
+    </requirements>
 
-## ⚠️ CRITICAL: Platform Parity Rule
+    <implementation-guidelines>
+      <guideline>Use #[cfg(feature = "device")] and #[cfg(feature = "simulator")] ONLY for I/O</guideline>
+      <guideline>Share all logic via traits: Display, InputSource, Platform</guideline>
+      <guideline>Test on simulator first, then verify on device</guideline>
+      <guideline>If you break parity, you break the development workflow</guideline>
+    </implementation-guidelines>
+  </platform-parity-rule>
 
-**The macOS simulator and reMarkable device version MUST ALWAYS be kept in sync.**
+  <deployment target="reMarkable">
+    <connection>
+      <ip>10.11.99.1 (USB connection)</ip>
+    </connection>
+    <commands>
+      <command purpose="copy-binary">scp target/armv7-unknown-linux-gnueabihf/release/jedusor root@10.11.99.1:</command>
+      <command purpose="run-ssh">ssh root@10.11.99.1 ./jedusor</command>
+      <command purpose="one-liner">scp target/armv7-unknown-linux-gnueabihf/release/jedusor root@10.11.99.1: &amp;&amp; ssh root@10.11.99.1 ./jedusor</command>
+    </commands>
+  </deployment>
 
-They are the **same application** with different I/O backends, not separate implementations.
+  <configuration>
+    <environment-variables>
+      <variable name="ANTHROPIC_API_KEY" required="true">Claude API key</variable>
+      <variable name="JEDUSOR_MODEL" default="claude-sonnet-4-20250514">Claude model ID</variable>
+      <variable name="JEDUSOR_RECOGNITION" default="google" values="google|local">Handwriting recognition backend</variable>
+      <variable name="JEDUSOR_MODE" default="journal" values="journal|document">Startup interaction mode</variable>
+    </environment-variables>
+  </configuration>
 
-**Non-Negotiable Requirements:**
-
-1. **Feature Parity**: Every feature must work on both platforms
-   - If it works on device but not simulator → Fix simulator immediately
-   - If it works on simulator but not device → Fix device immediately
-   - No "device-only" or "simulator-only" features (except I/O layer)
-
-2. **Shared Codebase**: Maximum code sharing
-   - Business logic: 100% shared
-   - Gesture detection: 100% shared
-   - Recognition: 100% shared
-   - Rendering logic: 100% shared
-   - Only I/O layer differs (libremarkable vs minifb)
-
-3. **Development Workflow**:
-   ```
-   1. Implement feature with shared abstractions (traits)
-   2. Test thoroughly on macOS simulator
-   3. Deploy to device and verify identical behavior
-   4. If behavior differs, update both to match
-   5. Commit only when both platforms work identically
-   ```
-
-4. **Why This Matters**:
-   - Simulator is primary development environment (10x faster iteration)
-   - Device deployment is slow (cross-compile + SSH = 30+ seconds)
-   - Contributors without devices depend on simulator accuracy
-   - Platform drift makes simulator useless for validation
-
-**When implementing new features:**
-- Use `#[cfg(feature = "device")]` and `#[cfg(feature = "simulator")]` ONLY for I/O
-- Share all logic via traits: `InputDevice`, `DisplayDevice`, etc.
-- Test on simulator first, then verify on device
-- If you break parity, you break the development workflow
-
-### reMarkable Device
-
-```bash
-# Install cross-compilation tool (one-time)
-cargo install cross
-
-# Build for reMarkable (debug)
-cross build --target armv7-unknown-linux-gnueabihf
-
-# Build for reMarkable (release - required for acceptable performance)
-cross build --release --target armv7-unknown-linux-gnueabihf
-
-# Alternative: musl target for static linking
-cross build --release --target armv7-unknown-linux-musleabihf
-
-# Run tests (host machine, no device/simulator features)
-cargo test --no-default-features
-
-# Run single test
-cargo test test_name --no-default-features
-
-# Check code without building
-cargo check
-
-# Lint
-cargo clippy --target armv7-unknown-linux-gnueabihf
-```
-
-## Deployment
-
-```bash
-# Device IP when connected via USB
-REMARKABLE_IP=10.11.99.1
-
-# Copy binary to device
-scp target/armv7-unknown-linux-gnueabihf/release/jedusor root@$REMARKABLE_IP:
-
-# SSH and run
-ssh root@$REMARKABLE_IP ./jedusor
-
-# One-liner deploy and run
-scp target/armv7-unknown-linux-gnueabihf/release/jedusor root@10.11.99.1: && ssh root@10.11.99.1 ./jedusor
-```
-
-## Configuration
-
-Environment variables (set on device or in `.env`):
-
-- `ANTHROPIC_API_KEY` - Claude API key (required)
-- `JEDUSOR_MODEL` - Claude model (default: `claude-sonnet-4-20250514`)
-- `JEDUSOR_RECOGNITION` - HWR backend: `google` or `local` (default: `google`)
-- `JEDUSOR_MODE` - Startup mode: `journal` or `document` (default: `journal`)
-
-## Key Implementation Notes
-
-### libremarkable Patterns
-
-```rust
+  <implementation-notes>
+    <section name="libremarkable-patterns">
+      <code language="rust">
 use libremarkable::appctx::ApplicationContext;
 use libremarkable::input::{InputEvent, WacomEvent};
 use libremarkable::framebuffer::{FramebufferRefresh, PartialRefreshMode};
@@ -184,149 +195,195 @@ app.start_event_loop(false, true, false, |ctx, event| {
         _ => {}
     }
 });
-```
+      </code>
+    </section>
 
-### Wacom Digitizer Events
+    <section name="wacom-digitizer-events">
+      <specification>
+        <coordinate name="X" range="0-20967"/>
+        <coordinate name="Y" range="0-15725"/>
+        <pressure range="0-4095"/>
+        <tilt range="-9000 to 9000" axes="X and Y"/>
+        <tool-types>
+          <tool>BTN_TOOL_PEN</tool>
+          <tool>BTN_TOOL_RUBBER</tool>
+        </tool-types>
+      </specification>
+    </section>
 
-- Coordinates: X (0-20967), Y (0-15725)
-- Pressure: 0-4095
-- Tilt: -9000 to 9000 (X and Y)
-- Tool types: `BTN_TOOL_PEN`, `BTN_TOOL_RUBBER`
+    <section name="eink-refresh-modes">
+      <modes>
+        <mode name="Full (GC16)" use-case="Page clear, final render" speed="~450ms"/>
+        <mode name="Partial (DU)" use-case="UI elements, buttons" speed="~120ms"/>
+        <mode name="Partial (GC16)" use-case="Text display" speed="~260ms"/>
+        <mode name="Partial (A2)" use-case="Real-time strokes" speed="~50ms"/>
+      </modes>
+    </section>
 
-### E-Ink Refresh Modes
+    <section name="performance-considerations">
+      <tip>Always build with --release (debug builds cause 70%+ CPU idle)</tip>
+      <tip>Use partial refresh for stroke rendering, full refresh sparingly</tip>
+      <tip>Batch UI updates when possible</tip>
+      <tip>Release builds achieve 0% idle, 1-2% peak CPU</tip>
+    </section>
 
-| Mode | Use Case | Speed |
-|------|----------|-------|
-| Full (GC16) | Page clear, final render | ~450ms |
-| Partial (DU) | UI elements, buttons | ~120ms |
-| Partial (GC16) | Text display | ~260ms |
-| Partial (A2) | Real-time strokes | ~50ms |
-
-### Performance Considerations
-
-- Always build with `--release` (debug builds cause 70%+ CPU idle)
-- Use partial refresh for stroke rendering, full refresh sparingly
-- Batch UI updates when possible
-- Release builds achieve 0% idle, 1-2% peak CPU
-
-### PDF Context Strategy
-
-For large documents, use windowed context:
-
-```rust
+    <section name="pdf-context-strategy">
+      <description>For large documents, use windowed context</description>
+      <code language="rust">
 enum ContextStrategy {
     CurrentPage,                           // Only current page
     Window { before: usize, after: usize }, // Adjacent pages
     AnnotatedPages,                        // Pages with user annotations
     SemanticSearch { query: String },      // Relevant sections
 }
-```
+      </code>
+    </section>
+  </implementation-notes>
 
-## Handwriting Recognition
+  <handwriting-recognition>
+    <provider name="Google Input Tools API" implementation="src/recognition/google.rs">
+      <api>
+        <endpoint>https://inputtools.google.com/request</endpoint>
+        <method>POST</method>
+        <latency typical="&lt;500ms" timeout="5s"/>
+        <accuracy>&gt;90% for legible handwriting</accuracy>
+        <languages default="English">Configurable for other languages</languages>
+        <retry-logic>3 attempts with exponential backoff</retry-logic>
+        <network-required>true</network-required>
+      </api>
 
-**Google Input Tools API** (implemented in `src/recognition/google.rs`):
+      <simulator-usage>
+        <step>1. Draw text strokes with mouse</step>
+        <step>2. Draw a circle gesture to trigger recognition</step>
+        <step>3. Recognized text displays with confidence score</step>
+        <example>You wrote: Hello (Confidence: 95%)</example>
+      </simulator-usage>
 
-- **Endpoint**: `https://inputtools.google.com/request`
-- **Method**: POST with JSON request body
-- **Latency**: <500ms typical, 5s timeout
-- **Accuracy**: >90% for legible handwriting
-- **Languages**: English (default), configurable for other languages
-- **Retry logic**: 3 attempts with exponential backoff
-- **Network required**: Yes
-
-### Usage in Simulator
-
-1. Draw text strokes with mouse
-2. Draw a circle gesture to trigger recognition
-3. Recognized text displays with confidence score
-4. Example: "You wrote: Hello (Confidence: 95%)"
-
-### Stroke Format
-
-Input strokes are converted to Google's ink format:
-
-```json
+      <stroke-format>
+        <json-structure>
 {
   "ink": [[x1, x2, ...], [y1, y2, ...], [t1, t2, ...]],
   "writing_guide": {"width": 1404, "height": 1872}
 }
-```
+        </json-structure>
+        <components>
+          <component name="X coordinates">Wacom space: 0-20967</component>
+          <component name="Y coordinates">Wacom space: 0-15725</component>
+          <component name="Timestamps">Milliseconds from session start</component>
+        </components>
+      </stroke-format>
 
-Each stroke contains:
-- X coordinates (Wacom space: 0-20967)
-- Y coordinates (Wacom space: 0-15725)
-- Timestamps (milliseconds from session start)
-
-### Response Format
-
-API returns ranked candidates with confidence scores:
-
-```rust
+      <response-format>
+        <code language="rust">
 RecognitionResult {
     text: "Hello",           // Top candidate
     confidence: 0.95,         // 0.0 to 1.0
     alternatives: ["Hollo"]   // Up to 4 alternatives
 }
-```
+        </code>
+      </response-format>
+    </provider>
+  </handwriting-recognition>
 
-## Project Structure
+  <project-structure>
+    <directory name="jedusor" type="root">
+      <file>Cargo.toml</file>
+      <file>CLAUDE.xml</file>
+      <file>REFACTORING-PLAN.md</file>
 
-```
-jedusor/
-├── Cargo.toml
-├── CLAUDE.md
-├── docs/
-│   ├── PRD.md                # Product requirements
-│   └── ADR/                  # Architecture decisions
-│       ├── 000-index.md
-│       ├── 001-programming-language.md
-│       ├── 002-handwriting-recognition.md
-│       ├── 003-llm-provider.md
-│       ├── 004-device-framework.md
-│       ├── 005-response-animation.md
-│       ├── 006-existing-projects-analysis.md
-│       └── 007-pdf-integration.md
-├── src/
-│   ├── main.rs               # Entry point
-│   ├── app.rs                # Mode switching, state
-│   ├── input/
-│   │   ├── mod.rs
-│   │   ├── wacom.rs          # Stylus events
-│   │   └── gesture.rs        # Circle, underline detection
-│   ├── stroke/
-│   │   ├── mod.rs
-│   │   └── collector.rs      # Stroke aggregation
-│   ├── recognition/
-│   │   ├── mod.rs
-│   │   ├── google.rs         # Google Input Tools
-│   │   └── traits.rs         # Recognition trait
-│   ├── pdf/
-│   │   ├── mod.rs
-│   │   ├── loader.rs         # PDF loading (lopdf)
-│   │   ├── renderer.rs       # Page rendering (mupdf)
-│   │   └── extractor.rs      # Text + position extraction
-│   ├── context/
-│   │   ├── mod.rs
-│   │   └── manager.rs        # LLM context building
-│   ├── llm/
-│   │   ├── mod.rs
-│   │   ├── claude.rs         # Anthropic API
-│   │   └── persona.rs        # System prompts
-│   └── render/
-│       ├── mod.rs
-│       ├── text.rs           # Text layout
-│       ├── animation.rs      # Streaming reveal
-│       └── zones.rs          # Response areas (margin/footer)
-├── assets/
-│   └── fonts/                # Typography
-└── tests/
-```
+      <directory name="docs">
+        <file>PRD.md - Product requirements</file>
+        <directory name="ADR" description="Architecture decisions">
+          <file>000-index.md</file>
+          <file>001-programming-language.md</file>
+          <file>002-handwriting-recognition.md</file>
+          <file>003-llm-provider.md</file>
+          <file>004-device-framework.md</file>
+          <file>005-response-animation.md</file>
+          <file>006-existing-projects-analysis.md</file>
+          <file>007-pdf-integration.md</file>
+          <file>008-macos-simulator.md</file>
+        </directory>
+      </directory>
 
-## References
+      <directory name="src">
+        <file>main.rs - Entry point</file>
 
-- [libremarkable](https://github.com/canselcik/libremarkable) - Device framework
-- [lopdf](https://github.com/J-F-Liu/lopdf) - PDF text extraction
-- [mupdf](https://mupdf.com/) - PDF rendering
-- [reMarkable Developer SDK](https://developer.remarkable.com/documentation/sdk)
-- [awesome-reMarkable](https://github.com/reHackable/awesome-reMarkable)
-- Similar: [reMarkableAI](https://github.com/nickian/reMarkableAI), [armrest](https://github.com/bkirwi/armrest)
+        <directory name="app">
+          <file>mod.rs - Mode switching, event loops</file>
+          <file>event_handler.rs - SHARED business logic (all platforms)</file>
+        </directory>
+
+        <directory name="input">
+          <file>mod.rs</file>
+          <file>wacom.rs - Stylus events</file>
+          <file>gesture.rs - Circle, underline, lasso detection</file>
+        </directory>
+
+        <directory name="stroke">
+          <file>mod.rs - Stroke data structures</file>
+        </directory>
+
+        <directory name="recognition">
+          <file>mod.rs</file>
+          <file>google.rs - Google Input Tools integration</file>
+        </directory>
+
+        <directory name="pdf">
+          <file>mod.rs</file>
+          <file>loader.rs - PDF loading (lopdf)</file>
+          <file>renderer.rs - Page rendering (mupdf)</file>
+          <file>extractor.rs - Text + position extraction</file>
+        </directory>
+
+        <directory name="context">
+          <file>mod.rs</file>
+          <file>manager.rs - LLM context building</file>
+        </directory>
+
+        <directory name="llm">
+          <file>mod.rs</file>
+          <file>claude.rs - Anthropic API client</file>
+          <file>persona.rs - System prompts</file>
+        </directory>
+
+        <directory name="render">
+          <file>mod.rs</file>
+          <file>text.rs - Text layout</file>
+          <file>strokes.rs - Stroke rendering</file>
+        </directory>
+
+        <directory name="platform" description="I/O abstraction layer">
+          <file>mod.rs - Display, InputSource, Platform traits</file>
+          <file>device.rs - reMarkable device implementation</file>
+          <file>simulator.rs - macOS simulator implementation</file>
+        </directory>
+
+        <directory name="simulator" feature="simulator">
+          <file>mod.rs</file>
+          <file>window.rs - minifb window for macOS</file>
+        </directory>
+      </directory>
+
+      <directory name="assets">
+        <directory name="fonts">
+          <file>Caveat-Regular.ttf - Handwriting-style font</file>
+        </directory>
+      </directory>
+
+      <directory name="tests">
+        <description>Integration and unit tests</description>
+      </directory>
+    </directory>
+  </project-structure>
+
+  <references>
+    <reference name="libremarkable" url="https://github.com/canselcik/libremarkable">Device framework</reference>
+    <reference name="lopdf" url="https://github.com/J-F-Liu/lopdf">PDF text extraction</reference>
+    <reference name="mupdf" url="https://mupdf.com/">PDF rendering</reference>
+    <reference name="reMarkable Developer SDK" url="https://developer.remarkable.com/documentation/sdk">Official SDK documentation</reference>
+    <reference name="awesome-reMarkable" url="https://github.com/reHackable/awesome-reMarkable">Community resources</reference>
+    <reference name="reMarkableAI" url="https://github.com/nickian/reMarkableAI" type="similar-project"/>
+    <reference name="armrest" url="https://github.com/bkirwi/armrest" type="similar-project"/>
+  </references>
+</claude-documentation>

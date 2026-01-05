@@ -1,4 +1,4 @@
-# CCPM Specs Directory
+# Specs Directory
 
 This directory contains Product Requirements Documents (PRDs) and technical specifications for the project.
 
@@ -7,13 +7,6 @@ This directory contains Product Requirements Documents (PRDs) and technical spec
 - `prds/` - Product Requirements Documents
 - `technical/` - Technical specifications
 - `templates/` - Document templates
-
-## Creating New PRDs
-
-Use the CCPM command to create new PRDs:
-```bash
-/ccpm:pm-prd-new
-```
 
 ## PRD Format
 
