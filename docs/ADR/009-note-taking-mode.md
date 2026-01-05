@@ -278,7 +278,113 @@ impl EndpointDetector {
 }
 ```
 
-**5. Layout Manager** (`src/layout/`)
+**5. Handwriting-to-Text Animator** (`src/render/fade_animator.rs`)
+
+Provides smooth visual transition from handwritten strokes to recognized text.
+
+```rust
+pub struct FadeAnimator {
+    /// Animation duration
+    duration: Duration,
+    /// Number of animation frames
+    frame_count: usize,
+}
+
+pub struct FadeAnimation {
+    /// Original strokes to fade out
+    strokes: Vec<Stroke>,
+    /// Recognized text to fade in
+    text: String,
+    /// Animation start time
+    start_time: Instant,
+    /// Current frame
+    current_frame: usize,
+    /// Total frames
+    total_frames: usize,
+}
+
+impl FadeAnimator {
+    pub fn new() -> Self {
+        Self {
+            duration: Duration::from_millis(600),  // 600ms animation
+            frame_count: 8,  // 8 frames for smooth e-ink transition
+        }
+    }
+
+    /// Start a new fade animation
+    pub fn start_fade(&self, strokes: Vec<Stroke>, text: String) -> FadeAnimation {
+        FadeAnimation {
+            strokes,
+            text,
+            start_time: Instant::now(),
+            current_frame: 0,
+            total_frames: self.frame_count,
+        }
+    }
+
+    /// Render current animation frame
+    pub fn render_frame(&self, fb: &mut Framebuffer, animation: &mut FadeAnimation) -> bool {
+        let elapsed = Instant::now().duration_since(animation.start_time);
+        let progress = elapsed.as_millis() as f32 / self.duration.as_millis() as f32;
+
+        if progress >= 1.0 {
+            // Animation complete - show final text only
+            self.render_text(fb, &animation.text, 1.0);
+            return true;  // Animation done
+        }
+
+        // Calculate frame progress (0.0 to 1.0)
+        animation.current_frame = (progress * self.frame_count as f32) as usize;
+
+        // E-ink limitation: simulate fade with alternating pattern
+        // Frame 0-3: Show strokes with decreasing density
+        // Frame 4-7: Show text with increasing density
+        if animation.current_frame < self.frame_count / 2 {
+            // Fade out strokes phase
+            let stroke_opacity = 1.0 - (animation.current_frame as f32 / (self.frame_count / 2) as f32);
+            self.render_strokes_fade(fb, &animation.strokes, stroke_opacity);
+        } else {
+            // Fade in text phase
+            let text_opacity = (animation.current_frame as f32 - (self.frame_count / 2) as f32)
+                             / (self.frame_count / 2) as f32;
+            self.render_text(fb, &animation.text, text_opacity);
+        }
+
+        false  // Animation continuing
+    }
+
+    /// Render strokes with simulated opacity (dithering pattern)
+    fn render_strokes_fade(&self, fb: &mut Framebuffer, strokes: &[Stroke], opacity: f32) {
+        // E-ink doesn't support true alpha blending
+        // Use spatial dithering to simulate opacity:
+        // - opacity 1.0: draw all stroke points
+        // - opacity 0.5: draw every other point (checkerboard)
+        // - opacity 0.25: draw every 4th point
+        let skip_factor = (1.0 / opacity).max(1.0) as usize;
+
+        for stroke in strokes {
+            for (i, point) in stroke.points.iter().enumerate() {
+                if i % skip_factor == 0 {
+                    fb.write_pixel(point.x as usize, point.y as usize, color::BLACK);
+                }
+            }
+        }
+    }
+
+    /// Render text with simulated opacity (progressive reveal)
+    fn render_text(&self, fb: &mut Framebuffer, text: &str, opacity: f32) {
+        // For text, use character-level progressive reveal
+        // opacity 0.5 = show first 50% of characters
+        let visible_chars = (text.len() as f32 * opacity) as usize;
+        let partial_text = &text[..visible_chars.min(text.len())];
+
+        // Render partial text
+        text_renderer.draw_text(fb, partial_text, x, y, font_size);
+    }
+}
+```
+
+**6. Layout Manager** (`src/layout/`)
 ```rust
 pub struct SplitLayout {
     journal_area: Rect,    // Top 1/4
@@ -302,7 +408,7 @@ impl SplitLayout {
 
 ## Event Flow
 
-### Normal Writing Flow (Timer-Based)
+### Normal Writing Flow (Timer-Based with Animation)
 
 ```
 User writes in writing area
@@ -325,15 +431,22 @@ EndpointDetector.is_complete_segment()
     ↓
 Content Classifier: Text or Drawing?
     ↓
-┌─────────────┬──────────────────┐
-│ Text        │ Drawing          │
-│ - Recognize │ - Save strokes   │
-│ - Add to    │ - Add to drawing │
-│   journal   │   collection     │
-│ - Clear     │ - Clear writing  │
-│   writing   │   area           │
-│   area      │                  │
-└─────────────┴──────────────────┘
+┌──────────────────────────┬──────────────────────┐
+│ Text                     │ Drawing              │
+│ - Recognize via API      │ - Save strokes       │
+│ - Start fade animation:  │ - Add to drawing     │
+│   * Frame 0-3: Fade out  │   collection         │
+│     strokes (dithering)  │ - Keep in writing    │
+│   * Frame 4-7: Fade in   │   area (no clear)    │
+│     text (progressive)   │                      │
+│ - Remove strokes after   │                      │
+│   animation complete     │                      │
+│ - Add text to journal    │                      │
+│ - Clear writing area     │                      │
+└──────────────────────────┴──────────────────────┘
+    ↓
+Journal updated with recognized text
+Writing area cleared (text) or preserved (drawing)
 ```
 
 ### Edit Flow (Strike-Through)
@@ -506,7 +619,110 @@ const MAX_SPATIAL_WIDTH: f32 = 1000.0;  // Maximum word width
 - Configurable timeout in settings (0.5s - 3.0s range)
 - Disable auto-recognition mode for drawing-heavy sessions
 
+### 6. Handwriting-to-Text Fade Animation
+
+**Decision**: Dithering-based fade transition with stroke removal
+
+**Rationale**:
+- E-ink displays don't support true alpha blending or transparency
+- Smooth visual feedback improves perceived responsiveness
+- Removing handwriting after recognition keeps writing area clean
+- Similar to "magical writing" effect from ADR-005
+
+**Animation Technique**:
+
+Since e-ink cannot render true opacity, simulate fading using:
+
+1. **Stroke Fade-Out (300ms, frames 0-3)**:
+   - Frame 0: 100% density (all stroke points)
+   - Frame 1: 66% density (skip every 3rd point)
+   - Frame 2: 50% density (skip every other point)
+   - Frame 3: 33% density (show every 3rd point)
+
+2. **Text Fade-In (300ms, frames 4-7)**:
+   - Frame 4: 25% of characters visible
+   - Frame 5: 50% of characters visible
+   - Frame 6: 75% of characters visible
+   - Frame 7: 100% of characters visible (complete)
+
+**Parameters**:
+```rust
+const ANIMATION_DURATION: Duration = Duration::from_millis(600);  // 600ms total
+const FRAME_COUNT: usize = 8;  // 8 frames @ 75ms/frame
+const STROKE_FADEOUT_FRAMES: usize = 4;  // First half
+const TEXT_FADEIN_FRAMES: usize = 4;     // Second half
+```
+
+**E-ink Refresh Strategy**:
+```rust
+// Use DU (fast) waveform for animation frames
+// Use GC16 (quality) for final text render
+for frame in 0..FRAME_COUNT {
+    render_animation_frame(fb, frame);
+    if frame < FRAME_COUNT - 1 {
+        fb.partial_refresh(waveform_mode::WAVEFORM_MODE_DU, ...);  // ~50ms
+    } else {
+        fb.partial_refresh(waveform_mode::WAVEFORM_MODE_GC16, ...); // ~260ms final
+    }
+}
+```
+
+**Visual Flow**:
+```
+T=0ms:    [Handwritten strokes at 100%]
+T=75ms:   [Strokes at 66% density]
+T=150ms:  [Strokes at 50% density]
+T=225ms:  [Strokes at 33% density]
+T=300ms:  [Transition point - clear strokes]
+T=375ms:  [Text at 25% visible]
+T=450ms:  [Text at 50% visible]
+T=525ms:  [Text at 75% visible]
+T=600ms:  [Text at 100% - animation complete]
+          [Remove strokes from memory]
+```
+
+**Alternative Approaches Considered**:
+
+1. **Instant Swap** (No animation)
+   - Pro: Fastest, simplest implementation
+   - Con: Jarring transition, feels abrupt
+   - Verdict: Poor UX for note-taking flow
+
+2. **Slide Transition** (Strokes slide up into journal)
+   - Pro: Intuitive spatial mapping
+   - Con: Complex positioning, multiple refreshes, slower
+   - Verdict: Too expensive for e-ink
+
+3. **Crossfade** (Overlap both stroke and text)
+   - Pro: Standard UI pattern
+   - Con: E-ink ghosting artifacts, unclear transition point
+   - Verdict: Technical limitations
+
+4. **Character-by-Character Typing** (Progressive reveal like ADR-005)
+   - Pro: Engaging, clear progression
+   - Con: Slower (need to render each character), harder to read mid-animation
+   - Verdict: Better for AI responses than recognition
+
+**Selected**: Dithering fade-out/fade-in for balance of speed, clarity, and technical feasibility
+
+**Stroke Removal Timing**:
+- Clear strokes from framebuffer after frame 3 (300ms)
+- Remove strokes from memory after animation completes (600ms)
+- This keeps writing area clean for next input
+
+**User Benefits**:
+- Visual confirmation that recognition succeeded
+- Smooth transition reduces jarring effect
+- Clean writing area ready for next entry
+- Perceived responsiveness (animation masks API latency)
+
 ## Performance Considerations
+
+**Animation Performance**:
+- 600ms total animation (8 frames @ 75ms each)
+- DU waveform for fast frame updates (~50ms)
+- GC16 final frame for quality text (~260ms)
+- Non-blocking: user can continue writing during animation
 
 **Journal Scrolling**:
 - Partial refresh for scroll updates

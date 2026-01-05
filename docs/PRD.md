@@ -255,6 +255,8 @@ Three interaction modes:
 - **Writing Area (Bottom 3/4)**: Active handwriting input zone
 - **Auto-Recognition**: Triggers after 1.5s of inactivity (no circle gesture needed)
 - **Endpoint Detection**: Analyzes spatial and temporal coherence of strokes
+- **Fade Animation**: Handwriting smoothly fades into text (600ms dithering transition)
+- **Stroke Removal**: Writing area clears automatically after recognition
 - **Gesture-based Editing**: Strike through text to edit or replace
 - **Content Detection**: Distinguish between text and sketches/diagrams
 - **Persistent Context**: Journal maintains conversation history
